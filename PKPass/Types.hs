@@ -1,10 +1,11 @@
-{-# LANGUAGE OverloadedStrings, QuasiQuotes, ExistentialQuantification, FlexibleInstances, UndecidableInstances #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes, ExistentialQuantification, FlexibleInstances, UndecidableInstances, RecordWildCards, TemplateHaskell #-}
 
 -- |This module provides types and functions for type-safe generation of PassBook's @pass.json@ files.
 --  It ensures that passes are created correctly wherever possible. Currently, NSBundle localization is not supported.
 module PKPass.Types where
 
 import           Data.Aeson
+import           Data.Aeson.TH
 import           Data.Text (Text, pack)
 import           Data.Time
 import           Text.Shakespeare.Text
@@ -51,22 +52,26 @@ data Barcode = Barcode {
     , messageEncoding :: Text -- ^ Barcode encoding. Default in the mkBarcode functions is iso-8859-1 (required)
 }
 
+-- |Pass field alignment
 data Alignment = LeftAlign
                | Center
                | RightAlign
                | Natural
 
+-- |Pass field date/time display style
 data DateTimeStyle = None -- ^ Corresponds to @NSDateFormatterNoStyle@
                    | Short -- ^ Corresponds to @NSDateFormatterShortStyle@
                    | Medium -- ^ Corresponds to @NSDateFormatterMediumStyle@
                    | Long -- ^ Corresponds to @NSDateFormatterLongStyle@
                    | Full -- ^ Corresponds to @NSDateFormatterFullStyle@
 
+-- |Pass field number display style
 data NumberStyle = Decimal
                  | Percent
                  | Scientific
                  | SpellOut
 
+-- |A single pass field.
 data PassField = forall a . ToPassField a => PassField {
     -- * standard field keys
       changeMessage :: Maybe Text -- ^ Message displayed when the pass is updated. May contain the @%\@@ placeholder for the value. (optional)
@@ -91,15 +96,9 @@ data TransitType = Air
                  | Train
                  | GenericTransit
 
+-- |Newtype wrapper around 'UTCTime' with a 'ToJSON' instance that ensures Passbook-compatible
+--  time rendering. (ISO 8601)
 newtype PassDate = PassDate UTCTime
-
-instance Show PassDate where
-    show (PassDate d) =
-        let timeFormat = iso8601DateFormat $ Just $ timeFmt defaultTimeLocale
-        in  formatTime defaultTimeLocale timeFormat d
-
-instance ToJSON PassDate where
-    toJSON = toJSON . pack . show
 
 -- |The type of a pass including the specific auxiliary, main, etc. fields
 data PassType = BoardingPass TransitType PassContent
@@ -108,6 +107,24 @@ data PassType = BoardingPass TransitType PassContent
               | GenericPass PassContent
               | StoreCard PassContent
 
+getPassContent :: PassType -> PassContent
+getPassContent pc = case pc of
+    BoardingPass _ pc -> pc
+    Coupon pc         -> pc
+    Event pc          -> pc
+    GenericPass pc    -> pc
+    StoreCard pc      -> pc
+
+instance ToJSON PassType where
+    toJSON (BoardingPass tt PassContent{..}) = object ["boardingPass" .= object [
+        "transitType" .= tt
+      , "headerFields" .= headerFields
+      , "primaryFields" .= primaryFields
+      , "secondaryFields" .= secondaryFields
+      , "auxiliaryFields" .= auxiliaryFields
+      , "backFields" .= backFields ]]
+    toJSON pt = object [ (pack $ show pt) .= (getPassContent pt) ]
+
 -- |The fields within a pass
 data PassContent = PassContent {
       headerFields :: [PassField] -- ^ Fields to be displayed on the front of the pass. Always shown in the stack.
@@ -115,7 +132,7 @@ data PassContent = PassContent {
     , secondaryFields :: [PassField] -- ^ Fields to be displayed on the front of the pass.
     , auxiliaryFields :: [PassField] -- ^ Additional fields to be displayed on the front of the pass.
     , backFields :: [PassField] -- ^ Fields to be on the back of the pass.
-} 
+}
 
 -- |A complete pass
 data Pass = Pass {
@@ -149,8 +166,14 @@ data Pass = Pass {
     , passContent :: PassType -- ^ The kind of pass and the passes' fields
 }
 
-
 -- * JSON instances
+
+$(deriveToJSON id ''Location)
+$(deriveToJSON id ''Barcode)
+$(deriveToJSON id ''PassField)
+$(deriveToJSON id ''PassContent)
+$(deriveToJSON id ''Pass)
+
 renderRGB :: RGBColor -> Text
 renderRGB (RGB r g b) = [st|rgb(#{show r},#{show g},#{show b})|]
 
@@ -199,6 +222,21 @@ instance Show TransitType where
 
 instance ToJSON TransitType where
     toJSON = toJSON . pack . show
+
+instance Show PassDate where
+    show (PassDate d) =
+        let timeFormat = iso8601DateFormat $ Just $ timeFmt defaultTimeLocale
+        in  formatTime defaultTimeLocale timeFormat d
+
+instance ToJSON PassDate where
+    toJSON = toJSON . pack . show
+
+instance Show PassType where
+    show (BoardingPass _ _) = "boardingPass"
+    show (Coupon _) = "coupon"
+    show (Event _) = "eventTicket"
+    show (GenericPass _) = "generic"
+    show (StoreCard _) = "storeCard"
 
 -- * Auxiliary functions
 
