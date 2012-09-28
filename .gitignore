@@ -6,3 +6,5 @@ cabal-dev
 *.chs.h
 
 .DS_Store
+
+PKPass/log.txt
