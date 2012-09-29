@@ -17,7 +17,12 @@ cabal-version:       >=1.8
 
 source-repository    head
     type: git
-    location: https://github.com/tazjin/elm-yesod.git
+    location: https://github.com/tazjin/hs-pkpass.git
+
+source-repository    this
+    type: git
+    location: https://github.com/tazjin/hs-pkpass/tree/v0.1
+    tag: 0.1
 
 
 library
