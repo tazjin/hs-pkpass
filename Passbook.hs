@@ -61,12 +61,9 @@ import           System.Directory        (doesFileExist)
 import           System.Random
 default (LT.Text)
 
--- |This function takes a 'Pass' and the path to the asset-folder.
---  The pass is rendered, stored in the asset folder, signed and packed.
---  Afterwards, the 'FilePath' of the signed pkpass file is returned. If
---  an error occured, Nothing is returned.
---  If not icon file is included, Nothing is returned as well.
---  Trailing slashes must be included in the FilePaths.
+-- |Takes the filepaths to the folder containing the path assets
+--  and the output folder, a 'Pass' and uses a random UUID to
+--  create and sign the pass.
 signpass :: FilePath -- ^ Input file path (asset directory)
          -> FilePath -- ^ Output file path
          -> Pass -- ^ The pass to sign
@@ -76,6 +73,10 @@ signpass passIn passOut pass = do
     passPath <- signpassWithId passId passIn passOut pass
     return (passPath, passId)
 
+-- |Works like 'signpass', except for the fourth argument which is a
+--  modifier function that updates the pass with the generated UUID.
+--  This is useful for cases where you want to store the UUID in the barcode
+--  or some other field on the pass as well.
 signpassWithModifier :: FilePath -- ^ Input file path (asset directory)
                      -> FilePath -- ^ Output file path
                      -> Pass -- ^ The pass to sign
@@ -86,6 +87,7 @@ signpassWithModifier passIn passOut pass modifier = do
     passPath <- signpassWithId passId passIn passOut $ modifier passId pass
     return (passPath, passId)
 
+-- |Creates and signs a 'Pass' with an existing ID.
 signpassWithId :: ST.Text -- ^ The pass ID
                -> FilePath -- ^ Input file path (asset directory)
                -> FilePath -- ^ Output file path
