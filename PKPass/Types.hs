@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, QuasiQuotes, ExistentialQuantification, FlexibleInstances, UndecidableInstances, RecordWildCards, TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes, ExistentialQuantification, FlexibleInstances, RecordWildCards, TemplateHaskell #-}
 
 -- |This module provides types and functions for type-safe generation of PassBook's @pass.json@ files.
 --  It ensures that passes are created correctly wherever possible. Currently, NSBundle localization is not supported.
@@ -15,17 +15,12 @@ type Encoding = Text
 type Message  = Text
 
 -- * Auxiliary class to ensure that field values are rendered correctly
-class ToJSON a => ToPassField a where
-    toPassField :: a -> Value
+class ToJSON a => ToPassField a
 
-instance (Num a, ToJSON a) => ToPassField a where
-    toPassField = toJSON
-
-instance ToPassField PassDate where
-    toPassField = toJSON
-
-instance ToPassField Text where
-    toPassField = toJSON
+instance ToPassField Int
+instance ToPassField Double
+instance ToPassField PassDate
+instance ToPassField Text --where
 
 -- * Passbook data types
 
@@ -107,24 +102,6 @@ data PassType = BoardingPass TransitType PassContent
               | GenericPass PassContent
               | StoreCard PassContent
 
-getPassContent :: PassType -> PassContent
-getPassContent pc = case pc of
-    BoardingPass _ pc -> pc
-    Coupon pc         -> pc
-    Event pc          -> pc
-    GenericPass pc    -> pc
-    StoreCard pc      -> pc
-
-instance ToJSON PassType where
-    toJSON (BoardingPass tt PassContent{..}) = object ["boardingPass" .= object [
-        "transitType" .= tt
-      , "headerFields" .= headerFields
-      , "primaryFields" .= primaryFields
-      , "secondaryFields" .= secondaryFields
-      , "auxiliaryFields" .= auxiliaryFields
-      , "backFields" .= backFields ]]
-    toJSON pt = object [ (pack $ show pt) .= (getPassContent pt) ]
-
 -- |The fields within a pass
 data PassContent = PassContent {
       headerFields :: [PassField] -- ^ Fields to be displayed on the front of the pass. Always shown in the stack.
@@ -173,6 +150,24 @@ $(deriveToJSON id ''Barcode)
 $(deriveToJSON id ''PassField)
 $(deriveToJSON id ''PassContent)
 $(deriveToJSON id ''Pass)
+
+getPassContent :: PassType -> PassContent
+getPassContent pc = case pc of
+    BoardingPass _ pc -> pc
+    Coupon pc         -> pc
+    Event pc          -> pc
+    GenericPass pc    -> pc
+    StoreCard pc      -> pc
+
+instance ToJSON PassType where
+    toJSON (BoardingPass tt PassContent{..}) = object ["boardingPass" .= object [
+        "transitType" .= tt
+      , "headerFields" .= headerFields
+      , "primaryFields" .= primaryFields
+      , "secondaryFields" .= secondaryFields
+      , "auxiliaryFields" .= auxiliaryFields
+      , "backFields" .= backFields ]]
+    toJSON pt = object [ (pack $ show pt) .= (getPassContent pt) ]
 
 renderRGB :: RGBColor -> Text
 renderRGB (RGB r g b) = [st|rgb(#{show r},#{show g},#{show b})|]
@@ -244,3 +239,22 @@ instance Show PassType where
 --  for both the barcode message and the alternative text.
 mkBarcode :: Text -> BarcodeFormat -> Barcode
 mkBarcode m f = Barcode (Just m) f m "iso-8859-1"
+
+
+-- |Spits out a @Just RGBColor@ if all numbers are in the RGB range.
+rgb :: (Int, Int, Int) -> Maybe RGBColor
+rgb (r, g, b) | isInRange r && isInRange b && isInRange b = Just $ RGB r g b
+              | otherwise = Nothing
+  where
+    isInRange x = 0 <= x && x <= 255
+
+-- |Creates a simple 'PassField' with just a key, a value and an optional label.
+--  All the other optional fields are set to 'Nothing'.
+mkSimpleField :: ToPassField a
+              => Text -- ^ Key
+              -> a -- ^ Value
+              -> Maybe Text -- ^ Label
+              -> PassField
+mkSimpleField k v l = PassField Nothing k l Nothing v Nothing Nothing
+                                Nothing Nothing Nothing
+
