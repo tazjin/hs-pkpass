@@ -7,7 +7,7 @@
 
 -- |This module provides types and functions for type-safe generation of PassBook's @pass.json@ files.
 --  It ensures that passes are created correctly wherever possible. Currently, NSBundle localization is not supported.
-module PKPass.Types where
+module Passbook.Types where
 
 import           Data.Aeson
 import           Data.Aeson.TH

@@ -1,20 +1,20 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
+{-# LANGUAGE OverloadedStrings    #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
-module PKPass where
+module Passbook where
 
-import PKPass.Types
-import Shelly
-import Data.Text.Lazy as LT
-import System.Directory (doesFileExist)
-import Data.Aeson
-import Data.Conduit
-import Data.Conduit.Binary hiding (sinkFile)
-import Data.Conduit.Filesystem
-import Data.UUID
-import System.Random
-import Prelude hiding (FilePath)
+import           Data.Aeson
+import           Data.Conduit
+import           Data.Conduit.Binary     hiding (sinkFile)
+import           Data.Conduit.Filesystem
+import           Data.Text.Lazy          as LT
+import           Data.UUID
+import           Passbook.Types
+import           Prelude                 hiding (FilePath)
+import           Shelly
+import           System.Directory        (doesFileExist)
+import           System.Random
 default (LT.Text)
 
 -- |This function takes a 'Pass' and the path to the asset-folder.
