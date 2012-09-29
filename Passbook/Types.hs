@@ -5,8 +5,17 @@
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE TemplateHaskell           #-}
 
--- |This module provides types and functions for type-safe generation of PassBook's @pass.json@ files.
---  It ensures that passes are created correctly wherever possible. Currently, NSBundle localization is not supported.
+{-# OPTIONS_HADDOCK -ignore-exports #-}
+
+
+{- |This module provides types and functions for type-safe generation of PassBook's @pass.json@ files.
+
+    This is a complete implementation of the Passbook Package Format Reference, available at
+    <https://developer.apple.com/library/ios/#documentation/UserExperience/Reference/PassKit_Bundle/Chapters/Introduction.html>.
+
+
+    It ensures that passes are created correctly wherever possible. Currently, NSBundle localization is not supported.
+-}
 module Passbook.Types where
 
 import           Data.Aeson
@@ -17,20 +26,20 @@ import           Data.Time
 import           System.Locale
 import           Text.Shakespeare.Text
 
-type Encoding = Text
-type Message  = Text
-
--- * Auxiliary class to ensure that field values are rendered correctly
+-- | Auxiliary class to ensure that field values are rendered correctly
 class ToJSON a => ToPassField a
 
 instance ToPassField Int
 instance ToPassField Double
 instance ToPassField PassDate
-instance ToPassField Text --where | This stray where has the purpose of fixing Sublime's syntax highlighting. Ignore.
+instance ToPassField Text --where
 
 -- * Passbook data types
 
--- |A location field (incomplete according to spec)
+type Encoding = Text
+type Message  = Text
+
+-- |A location field
 data Location = Location {
       latitude     :: Double -- ^ Latitude, in degrees, of the location (required)
     , longitude    :: Double -- ^ Longitude, in degrees, of the location (required)
@@ -39,7 +48,7 @@ data Location = Location {
 }
 
 -- |A simple RGB color value. In combination with the 'rgb' function this can be written just like in
---  CSS, e.g. rgb(43, 53, 65). The 'rgb' function also ensures that the provided values are valid.
+--  CSS, e.g. @rgb(43, 53, 65)@. The 'rgb' function also ensures that the provided values are valid.
 data RGBColor = RGB Int Int Int
 
 -- |Barcode is constructed by a Barcode format, an encoding
@@ -48,6 +57,7 @@ data BarcodeFormat = QRCode
                    | PDF417
                    | Aztec
 
+-- |A pass barcode. In most cases the helper function 'mkBarcode' should be sufficient.
 data Barcode = Barcode {
       altText         :: Maybe Text -- ^ Text displayed near the barcode (optional)
     , format          :: BarcodeFormat -- ^ Barcode format (required)
@@ -74,25 +84,29 @@ data NumberStyle = Decimal
                  | Scientific
                  | SpellOut
 
--- |A single pass field.
+-- |A single pass field. The 'value' of a 'PassField' can be anything that is an instance of 'ToPassField'.
+--  Dates and numbers are always correctly formatted. If you add another type to 'ToPassField' please make sure
+--  that it's corresponding 'ToJSON' instance generates Passbook-compatible JSON.
+--  To create a very simple key/value field containing text you can use the 'mkSimpleField' function.
 data PassField = forall a . ToPassField a => PassField {
-    -- * standard field keys
+    -- standard field keys
       changeMessage :: Maybe Text -- ^ Message displayed when the pass is updated. May contain the @%\@@ placeholder for the value. (optional)
     , key           :: Text -- ^ Must be a unique key within the scope of the pass (e.g. \"departure-gate\") (required)
     , label         :: Maybe Text -- ^ Label text for the field. (optional)
     , textAlignment :: Maybe Alignment -- ^ Alignment for the field's contents. Not allowed for primary fields. (optional)
     , value         :: a -- ^ Value of the field. Must be a string, ISO 8601 date or a number. (required)
 
-    -- * Date style keys (all optional). If any key is present, the field will be treated as a date.
-    , dateStyle     :: Maybe DateTimeStyle -- ^ Style of date to display
-    , timeStyle     :: Maybe DateTimeStyle -- ^ Style of time to display
-    , isRelative    :: Maybe Bool -- ^ Is the date/time displayed relative to the current time or absolute? Default: @False@
+    -- Date style keys (all optional). If any key is present, the field will be treated as a date.
+    , dateStyle     :: Maybe DateTimeStyle -- ^ Style of date to display (optional)
+    , timeStyle     :: Maybe DateTimeStyle -- ^ Style of time to display (optional)
+    , isRelative    :: Maybe Bool -- ^ Is the date/time displayed relative to the current time or absolute? Default: @False@ (optional)
 
-    -- * Number style keys (all optional). Not allowed if the field is not a number.
-    , currencyCode  :: Maybe Text -- ^ ISO 4217 currency code for the field's value
-    , numberStyle   :: Maybe NumberStyle -- ^ Style of number to display. See @NSNumberFormatterStyle@ docs for more information.
+    -- Number style keys (all optional). Not allowed if the field is not a number.
+    , currencyCode  :: Maybe Text -- ^ ISO 4217 currency code for the field's value (optional)
+    , numberStyle   :: Maybe NumberStyle -- ^ Style of number to display. See @NSNumberFormatterStyle@ docs for more information. (optional)
 }
 
+-- |BoardingPass transit type. Only necessary for Boarding Passes.
 data TransitType = Air
                  | Boat
                  | Bus
@@ -121,7 +135,7 @@ data PassContent = PassContent {
 
 -- |A complete pass
 data Pass = Pass {
-    -- * Required keys
+    -- Required keys
       description                :: Text -- ^ Brief description of the pass (required)
     , formatVersion              :: Int  -- ^ Version of the file format. The value must be 1. (required)
     , organizationName           :: Text -- ^ Display name of the organization that signed the pass (required)
@@ -129,14 +143,14 @@ data Pass = Pass {
     , serialNumber               :: Text -- ^ Unique serial number for the pass (required)
     , teamIdentifier             :: Text -- ^ Team identifier for the organization (required)
 
-    -- * associated app keys
+    -- associated app keys
     , associatedStoreIdentifiers :: [Text] -- ^ A list of iTunes Store item identifiers for associated apps (optional)
 
-    -- * relevance keys
+    -- relevance keys
     , locations                  :: [Location]  -- ^ Locations where the pass is relevant (e.g. that of a store) (optional)
     , relevantDate               :: Maybe PassDate -- ^ ISO 8601 formatted date for when the pass becomes relevant (optional)
 
-    -- * visual appearance key
+    -- visual appearance key
     , barcode                    :: Maybe Barcode -- ^ Barcode information (optional)
     , backgroundColor            :: Maybe RGBColor -- ^ Background color of the pass (optional)
     , foregroundColor            :: Maybe RGBColor -- ^ Foreground color of the pass (optional)
@@ -144,11 +158,11 @@ data Pass = Pass {
     , logoText                   :: Maybe Text -- ^ Text displayed next to the logo on the pass (optional)
     , suppressStripShine         :: Maybe Bool -- ^ If @True@, the strip image is displayed without a shine effect. (optional)
 
-    -- * web service keys
+    -- web service keys
     , authenticationToken        :: Maybe Text -- ^ Authentication token for use with the web service. Must be 16 characters or longer (optional)
-    , webServiceURL              :: Maybe Text -- ^ The URL of a web service that conforms to the API described in the Passbook Web Service Reference
+    , webServiceURL              :: Maybe Text -- ^ The URL of a web service that conforms to the API described in the Passbook Web Service Reference (optional)
 
-    , passContent                :: PassType -- ^ The kind of pass and the passes' fields
+    , passContent                :: PassType -- ^ The kind of pass and the passes' fields (required)
 }
 
 -- * JSON instances
@@ -213,6 +227,7 @@ instance ToJSON Pass where
                     , (pack $ show passContent) .= passContent]
       in object pairs
 
+-- |Internal helper function to handle Boarding Passes correctly.
 getPassContent :: PassType -> PassContent
 getPassContent pc = case pc of
     BoardingPass _ pc -> pc
@@ -231,6 +246,7 @@ instance ToJSON PassType where
       , "backFields" .= backFields ]
     toJSON pt = toJSON $ getPassContent pt
 
+-- |Internal helper function
 renderRGB :: RGBColor -> Text
 renderRGB (RGB r g b) = [st|rgb(#{show r},#{show g},#{show b})|]
 
@@ -303,7 +319,7 @@ mkBarcode :: Text -> BarcodeFormat -> Barcode
 mkBarcode m f = Barcode (Just m) f m "iso-8859-1"
 
 
--- |Spits out a @Just RGBColor@ if all numbers are in the RGB range.
+-- |Creates a @Just RGBColor@ if all supplied numbers are between 0 and 255.
 rgb :: (Int, Int, Int) -> Maybe RGBColor
 rgb (r, g, b) | isInRange r && isInRange b && isInRange b = Just $ RGB r g b
               | otherwise = Nothing
