@@ -3,18 +3,20 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 
-{- |This module provides two functions to sign a 'Pass' using Apple's @signpass@
+{- |This module provides different functions to sign a 'Pass' using Apple's @signpass@
     command-line tool.
 
     I intend to move the signing process to a Haskell native OpenSSL binding later
     on, but due to time constraints didn't get around to it yet.
 
-    One function creates a random UUID during the signing process, uses this UUID
+    The function 'signpass' creates a random UUID during the signing process, uses this UUID
     as the passes' serial number and returns it along with the path to the signed pass.
-    This function is 'signpass' and is what you would want for dynamically generated,
-    new passes.
 
-    The other function, 'signpassWithId', takes an existing ID and signs the pass
+    The funciton 'signpassWithModifier' creates a random UUID during the signing process,
+    passes this UUID on to a function that modifies the pass accordingly (e.g. sets the serial
+    number or the barcode payload to the UUID) and otherwise works like 'signpass'.
+
+    The function, 'signpassWithId', takes an existing ID and signs the pass
     using that for the serial number and file name. This will most likely be used
     for updating existing passes.
 
@@ -70,6 +72,16 @@ signpass :: FilePath -- ^ Input file path (asset directory)
 signpass passIn passOut pass = do
     passId <- genPassId
     passPath <- signpassWithId passId passIn passOut pass
+    return (passPath, passId)
+
+signpassWithModifier :: FilePath -- ^ Input file path (asset directory)
+                     -> FilePath -- ^ Output file path
+                     -> Pass -- ^ The pass to sign
+                     -> (ST.Text -> Pass -> Pass) -- ^ Modifier function
+                     -> IO (FilePath, ST.Text) -- ^ The filepath of the signed .pkpass and its UUID
+signpassWithModifier passIn passOut pass modifier = do
+    passId <- genPassId
+    passPath <- signpassWithId passId passIn passOut $ modifier passId pass
     return (passPath, passId)
 
 signpassWithId :: ST.Text -- ^ The pass ID
