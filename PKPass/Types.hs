@@ -26,7 +26,7 @@ class ToJSON a => ToPassField a
 instance ToPassField Int
 instance ToPassField Double
 instance ToPassField PassDate
-instance ToPassField Text --where
+instance ToPassField Text --where | This stray where has the purpose of fixing Sublime's syntax highlighting. Ignore.
 
 -- * Passbook data types
 
@@ -38,6 +38,8 @@ data Location = Location {
     , relevantText :: Maybe Text -- ^ Text displayed on the lock screen when the pass is relevant (optional)
 }
 
+-- |A simple RGB color value. In combination with the 'rgb' function this can be written just like in
+--  CSS, e.g. rgb(43, 53, 65). The 'rgb' function also ensures that the provided values are valid.
 data RGBColor = RGB Int Int Int
 
 -- |Barcode is constructed by a Barcode format, an encoding
