@@ -55,7 +55,7 @@ data RGBColor = RGB Int Int Int
 --  type and the Barcode message.
 data BarcodeFormat = QRCode
                    | PDF417
-                   | Aztec
+                   | Aztec
 
 -- |A pass barcode. In most cases the helper function 'mkBarcode' should be sufficient.
 data Barcode = Barcode {
@@ -68,20 +68,20 @@ data Barcode = Barcode {
 -- |Pass field alignment
 data Alignment = LeftAlign
                | Center
-               | RightAlign
+               | RightAlign
                | Natural
 
 -- |Pass field date/time display style
 data DateTimeStyle = None -- ^ Corresponds to @NSDateFormatterNoStyle@
-                   | Short -- ^ Corresponds to @NSDateFormatterShortStyle@
+                   | Short -- ^ Corresponds to @NSDateFormatterShortStyle@
                    | Medium -- ^ Corresponds to @NSDateFormatterMediumStyle@
-                   | Long -- ^ Corresponds to @NSDateFormatterLongStyle@
+                   | Long -- ^ Corresponds to @NSDateFormatterLongStyle@
                    | Full -- ^ Corresponds to @NSDateFormatterFullStyle@
 
 -- |Pass field number display style
 data NumberStyle = Decimal
-                 | Percent
-                 | Scientific
+                 | Percent
+                 | Scientific
                  | SpellOut
 
 -- |A single pass field. The 'value' of a 'PassField' can be anything that is an instance of 'ToPassField'.
@@ -108,9 +108,9 @@ data PassField = forall a . ToPassField a => PassField {
 
 -- |BoardingPass transit type. Only necessary for Boarding Passes.
 data TransitType = Air
-                 | Boat
-                 | Bus
-                 | Train
+                 | Boat
+                 | Bus
+                 | Train
                  | GenericTransit
 
 -- |Newtype wrapper around 'UTCTime' with a 'ToJSON' instance that ensures Passbook-compatible
