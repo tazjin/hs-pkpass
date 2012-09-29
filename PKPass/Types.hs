@@ -6,6 +6,7 @@ module PKPass.Types where
 
 import           Data.Aeson
 import           Data.Aeson.TH
+import Data.Aeson.Types
 import           Data.Text (Text, pack)
 import           Data.Time
 import           Text.Shakespeare.Text
@@ -31,6 +32,14 @@ data Location = Location {
     , altitude     :: Maybe Double -- ^ Altitude, in meters, of the location (optional)
     , relevantText :: Maybe Text -- ^ Text displayed on the lock screen when the pass is relevant (optional)
 }
+
+instance ToJSON Location where
+    toJSON Location{..} =
+      let pairs =   ("altitude" -: altitude)
+                  $ ("relevantText" -: relevantText)
+                  $ ["latitude" .= latitude
+                    ,"longitude" .= longitude]
+      in object pairs
 
 data RGBColor = RGB Int Int Int
 
@@ -145,7 +154,12 @@ data Pass = Pass {
 
 -- * JSON instances
 
-$(deriveToJSON id ''Location)
+-- |Conditionally appends something wrapped in Maybe to a list of 'Pair'. This is necessary
+--  because Passbook can't deal with null values in JSON.
+(-:) :: ToJSON a => Text -> Maybe a -> ([Pair] -> [Pair])
+(-:) _ Nothing = id
+(-:) key (Just value) = ((key .= value) :)
+
 $(deriveToJSON id ''Barcode)
 $(deriveToJSON id ''PassField)
 $(deriveToJSON id ''PassContent)
