@@ -40,6 +40,8 @@
     otherwise the generated pass will not work.
 
     Refer to Apple's Passbook documentation at <https://developer.apple.com/passbook/>
+    for more information or to retrieve the @signpass@ tool which is included in the
+    Passbook Support Materials. (iOS Developer Membership necessary)
 
     This module will most likely only work on OS X machines.
 -}
