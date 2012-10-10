@@ -49,7 +49,8 @@
 module Passbook ( signpass
                 , signpassWithId
                 , signpassWithModifier
-                , genPassId ) where
+                , genPassId
+                , updateBarcode ) where
 
 import           Data.Aeson
 import           Data.Conduit
