@@ -15,6 +15,7 @@
     The funciton 'signpassWithModifier' creates a random UUID during the signing process,
     passes this UUID on to a function that modifies the pass accordingly (e.g. sets the serial
     number or the barcode payload to the UUID) and otherwise works like 'signpass'.
+    The function 'updateBarcode' is provided as well.
 
     The function, 'signpassWithId', takes an existing ID and signs the pass
     using that for the serial number and file name. This will most likely be used
@@ -45,7 +46,10 @@
 
     This module will most likely only work on OS X machines.
 -}
-module Passbook (signpass, signpassWithId, genPassId) where
+module Passbook ( signpass
+                , signpassWithId
+                , signpassWithModifier
+                , genPassId ) where
 
 import           Data.Aeson
 import           Data.Conduit
@@ -86,6 +90,13 @@ signpassWithModifier passIn passOut pass modifier = do
     passId <- genPassId
     passPath <- signpassWithId passId passIn passOut $ modifier passId pass
     return (passPath, passId)
+
+-- |Updates the barcode in a pass with the UUID. This can be passed to 'signpassWithModifier'
+updateBarcode :: ST.Text -> Pass -> Pass
+updateBarcode n p = case barcode p of
+    Nothing -> p -- This pass has no barcode.
+    Just ob -> p { barcode = Just ob { altText = Just n
+                                     , message = n } }
 
 -- |Creates and signs a 'Pass' with an existing ID.
 signpassWithId :: ST.Text -- ^ The pass ID
