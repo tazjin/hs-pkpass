@@ -125,6 +125,8 @@ data PassType = BoardingPass TransitType PassContent
               | StoreCard PassContent
 
 data WebService = WebService {
+      authenticationToken        :: Text -- ^ Authentication token for use with the web service. Must be 16 characters or longer (optional)
+    , webServiceURL              :: Text -- ^ The URL of a web service that conforms to the API described in the Passbook Web Service Reference (optional)
 }
 
 -- |The fields within a pass
