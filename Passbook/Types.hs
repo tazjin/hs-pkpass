@@ -124,6 +124,9 @@ data PassType = BoardingPass TransitType PassContent
               | GenericPass PassContent
               | StoreCard PassContent
 
+data WebService = WebService {
+}
+
 -- |The fields within a pass
 data PassContent = PassContent {
       headerFields    :: [PassField] -- ^ Fields to be displayed on the front of the pass. Always shown in the stack.
@@ -159,8 +162,7 @@ data Pass = Pass {
     , suppressStripShine         :: Maybe Bool -- ^ If @True@, the strip image is displayed without a shine effect. (optional)
 
     -- web service keys
-    , authenticationToken        :: Maybe Text -- ^ Authentication token for use with the web service. Must be 16 characters or longer (optional)
-    , webServiceURL              :: Maybe Text -- ^ The URL of a web service that conforms to the API described in the Passbook Web Service Reference (optional)
+    , webService                 :: Maybe WebService -- ^ Contains the authentication token (16 characters or longer) and the API end point for a Web Service
 
     , passContent                :: PassType -- ^ The kind of pass and the passes' fields (required)
 }
@@ -214,8 +216,8 @@ instance ToJSON Pass where
                   $ ("labelColor" -: labelColor)
                   $ ("logoText" -: logoText)
                   $ ("suppressStripShine" -: suppressStripShine)
-                  $ ("authenticationToken" -: authenticationToken)
-                  $ ("webServiceURL" -: webServiceURL)
+                  $ ("authenticationToken" -: (fmap authenticationToken) webService)
+                  $ ("webServiceURL" -: (fmap webServiceURL) webService)
                   $ [ "description" .= description
                     , "formatVersion" .= (1 :: Int) -- Harcoding this because it should not be changed
                     , "organizationName" .= organizationName
