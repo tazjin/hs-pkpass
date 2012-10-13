@@ -4,6 +4,7 @@
 {-# LANGUAGE QuasiQuotes               #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE TemplateHaskell           #-}
+{-# LANGUAGE DeriveDataTypeable        #-}
 
 {-# OPTIONS_HADDOCK -ignore-exports #-}
 
@@ -21,13 +22,14 @@ module Passbook.Types where
 import           Data.Aeson
 import           Data.Aeson.TH
 import           Data.Aeson.Types
+import           Data.Typeable
 import           Data.Text             (Text, pack)
 import           Data.Time
 import           System.Locale
 import           Text.Shakespeare.Text
 
 -- | Auxiliary class to ensure that field values are rendered correctly
-class ToJSON a => ToPassField a
+class (Typeable a, ToJSON a) => ToPassField a
 
 instance ToPassField Int
 instance ToPassField Double
@@ -45,17 +47,19 @@ data Location = Location {
     , longitude    :: Double -- ^ Longitude, in degrees, of the location (required)
     , altitude     :: Maybe Double -- ^ Altitude, in meters, of the location (optional)
     , relevantText :: Maybe Text -- ^ Text displayed on the lock screen when the pass is relevant (optional)
-}
+} deriving (Typeable)
 
 -- |A simple RGB color value. In combination with the 'rgb' function this can be written just like in
 --  CSS, e.g. @rgb(43, 53, 65)@. The 'rgb' function also ensures that the provided values are valid.
 data RGBColor = RGB Int Int Int
+    deriving (Typeable)
 
 -- |Barcode is constructed by a Barcode format, an encoding
 --  type and the Barcode message.
 data BarcodeFormat = QRCode
                    | PDF417
                    | Aztec
+    deriving (Typeable)
 
 -- |A pass barcode. In most cases the helper function 'mkBarcode' should be sufficient.
 data Barcode = Barcode {
@@ -63,13 +67,14 @@ data Barcode = Barcode {
     , format          :: BarcodeFormat -- ^ Barcode format (required)
     , message         :: Text -- ^ Message / payload to be displayed as a barcode (required)
     , messageEncoding :: Text -- ^ Barcode encoding. Default in the mkBarcode functions is iso-8859-1 (required)
-}
+} deriving (Typeable)
 
 -- |Pass field alignment
 data Alignment = LeftAlign
                | Center
                | RightAlign
                | Natural
+    deriving (Typeable)
 
 -- |Pass field date/time display style
 data DateTimeStyle = None -- ^ Corresponds to @NSDateFormatterNoStyle@
@@ -77,12 +82,14 @@ data DateTimeStyle = None -- ^ Corresponds to @NSDateFormatterNoStyle@
                    | Medium -- ^ Corresponds to @NSDateFormatterMediumStyle@
                    | Long -- ^ Corresponds to @NSDateFormatterLongStyle@
                    | Full -- ^ Corresponds to @NSDateFormatterFullStyle@
+    deriving (Typeable)
 
 -- |Pass field number display style
 data NumberStyle = Decimal
                  | Percent
                  | Scientific
                  | SpellOut
+    deriving (Typeable)
 
 -- |A single pass field. The 'value' of a 'PassField' can be anything that is an instance of 'ToPassField'.
 --  Dates and numbers are always correctly formatted. If you add another type to 'ToPassField' please make sure
@@ -104,7 +111,7 @@ data PassField = forall a . ToPassField a => PassField {
     -- Number style keys (all optional). Not allowed if the field is not a number.
     , currencyCode  :: Maybe Text -- ^ ISO 4217 currency code for the field's value (optional)
     , numberStyle   :: Maybe NumberStyle -- ^ Style of number to display. See @NSNumberFormatterStyle@ docs for more information. (optional)
-}
+} deriving (Typeable)
 
 -- |BoardingPass transit type. Only necessary for Boarding Passes.
 data TransitType = Air
@@ -112,10 +119,11 @@ data TransitType = Air
                  | Bus
                  | Train
                  | GenericTransit
+    deriving (Typeable)
 
 -- |Newtype wrapper around 'UTCTime' with a 'ToJSON' instance that ensures Passbook-compatible
 --  time rendering. (ISO 8601)
-newtype PassDate = PassDate UTCTime
+newtype PassDate = PassDate UTCTime deriving (Typeable)
 
 -- |The type of a pass including the specific auxiliary, main, etc. fields
 data PassType = BoardingPass TransitType PassContent
@@ -123,11 +131,12 @@ data PassType = BoardingPass TransitType PassContent
               | Event PassContent
               | GenericPass PassContent
               | StoreCard PassContent
+    deriving (Typeable)
 
 data WebService = WebService {
       authenticationToken        :: Text -- ^ Authentication token for use with the web service. Must be 16 characters or longer (optional)
     , webServiceURL              :: Text -- ^ The URL of a web service that conforms to the API described in the Passbook Web Service Reference (optional)
-}
+} deriving (Typeable)
 
 -- |The fields within a pass
 data PassContent = PassContent {
@@ -136,7 +145,7 @@ data PassContent = PassContent {
     , secondaryFields :: [PassField] -- ^ Fields to be displayed on the front of the pass.
     , auxiliaryFields :: [PassField] -- ^ Additional fields to be displayed on the front of the pass.
     , backFields      :: [PassField] -- ^ Fields to be on the back of the pass.
-}
+} deriving (Typeable)
 
 -- |A complete pass
 data Pass = Pass {
@@ -167,7 +176,7 @@ data Pass = Pass {
     , webService                 :: Maybe WebService -- ^ Contains the authentication token (16 characters or longer) and the API end point for a Web Service
 
     , passContent                :: PassType -- ^ The kind of pass and the passes' fields (required)
-}
+} deriving (Typeable)
 
 -- * JSON instances
 
