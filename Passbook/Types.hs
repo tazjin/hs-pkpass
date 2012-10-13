@@ -5,9 +5,7 @@
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE TemplateHaskell           #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
-
-{-# OPTIONS_HADDOCK -ignore-exports #-}
-
+{-# LANGUAGE StandaloneDeriving        #-}
 
 {- |This module provides types and functions for type-safe generation of PassBook's @pass.json@ files.
 
@@ -17,8 +15,31 @@
 
     It ensures that passes are created correctly wherever possible. Currently, NSBundle localization is not supported.
 -}
-module Passbook.Types where
+module Passbook.Types(
+    -- * Passbook field types
+      PassValue(..)
+    , RelevantDate
+    , Location(..)
+    , RGBColor
+    , BarcodeFormat(..)
+    , Barcode(..)
+    , Alignment(..)
+    , DateTimeStyle(..)
+    , NumberStyle(..)
+    , TransitType(..)
+    , WebService(..)
+    -- * Passbook types
+    , PassField(..)
+    , PassType(..)
+    , PassContent(..)
+    , Pass(..)
+    -- * Auxiliary functions
+    , rgb
+    , mkBarcode
+    , mkSimpleField
+    ) where
 
+import Control.Applicative ((<*>), (<$>))
 import           Data.Aeson
 import           Data.Aeson.TH
 import           Data.Aeson.Types
@@ -28,18 +49,17 @@ import           Data.Time
 import           System.Locale
 import           Text.Shakespeare.Text
 
--- | Auxiliary class to ensure that field values are rendered correctly
-class (Typeable a, ToJSON a) => ToPassField a
-
-instance ToPassField Int
-instance ToPassField Double
-instance ToPassField PassDate
-instance ToPassField Text --where
+-- | Auxiliary type to ensure that field values are rendered correctly
+data PassValue = PassInt Int
+               | PassDouble Double
+               | PassDate UTCTime
+               | PassText Text
+    deriving (Eq, Ord, Show, Typeable)
 
 -- * Passbook data types
 
-type Encoding = Text
-type Message  = Text
+-- |Newtype wrapper around 'UTCTime' for use in the @relevantDate@ field of a pass.
+newtype RelevantDate = RelevantDate UTCTime deriving (Eq, Ord, Show, Typeable)
 
 -- |A location field
 data Location = Location {
@@ -47,19 +67,19 @@ data Location = Location {
     , longitude    :: Double -- ^ Longitude, in degrees, of the location (required)
     , altitude     :: Maybe Double -- ^ Altitude, in meters, of the location (optional)
     , relevantText :: Maybe Text -- ^ Text displayed on the lock screen when the pass is relevant (optional)
-} deriving (Typeable)
+} deriving (Eq, Ord, Show, Typeable)
 
 -- |A simple RGB color value. In combination with the 'rgb' function this can be written just like in
 --  CSS, e.g. @rgb(43, 53, 65)@. The 'rgb' function also ensures that the provided values are valid.
 data RGBColor = RGB Int Int Int
-    deriving (Typeable)
+    deriving (Eq, Ord, Show, Typeable)
 
 -- |Barcode is constructed by a Barcode format, an encoding
 --  type and the Barcode message.
 data BarcodeFormat = QRCode
                    | PDF417
                    | Aztec
-    deriving (Typeable)
+    deriving (Eq, Ord, Show, Typeable)
 
 -- |A pass barcode. In most cases the helper function 'mkBarcode' should be sufficient.
 data Barcode = Barcode {
@@ -67,14 +87,14 @@ data Barcode = Barcode {
     , format          :: BarcodeFormat -- ^ Barcode format (required)
     , message         :: Text -- ^ Message / payload to be displayed as a barcode (required)
     , messageEncoding :: Text -- ^ Barcode encoding. Default in the mkBarcode functions is iso-8859-1 (required)
-} deriving (Typeable)
+} deriving (Eq, Ord, Show, Typeable)
 
 -- |Pass field alignment
 data Alignment = LeftAlign
                | Center
                | RightAlign
                | Natural
-    deriving (Typeable)
+    deriving (Eq, Ord, Typeable)
 
 -- |Pass field date/time display style
 data DateTimeStyle = None -- ^ Corresponds to @NSDateFormatterNoStyle@
@@ -82,26 +102,24 @@ data DateTimeStyle = None -- ^ Corresponds to @NSDateFormatterNoStyle@
                    | Medium -- ^ Corresponds to @NSDateFormatterMediumStyle@
                    | Long -- ^ Corresponds to @NSDateFormatterLongStyle@
                    | Full -- ^ Corresponds to @NSDateFormatterFullStyle@
-    deriving (Typeable)
+    deriving (Eq, Ord, Typeable)
 
 -- |Pass field number display style
 data NumberStyle = Decimal
                  | Percent
                  | Scientific
                  | SpellOut
-    deriving (Typeable)
+    deriving (Eq, Ord, Typeable)
 
--- |A single pass field. The 'value' of a 'PassField' can be anything that is an instance of 'ToPassField'.
---  Dates and numbers are always correctly formatted. If you add another type to 'ToPassField' please make sure
---  that it's corresponding 'ToJSON' instance generates Passbook-compatible JSON.
+-- |A single pass field. The type 'PassValue' holds the fields value and ensures that the JSON output is compatible with Passbook.
 --  To create a very simple key/value field containing text you can use the 'mkSimpleField' function.
-data PassField = forall a . ToPassField a => PassField {
+data PassField = PassField {
     -- standard field keys
       changeMessage :: Maybe Text -- ^ Message displayed when the pass is updated. May contain the @%\@@ placeholder for the value. (optional)
     , key           :: Text -- ^ Must be a unique key within the scope of the pass (e.g. \"departure-gate\") (required)
     , label         :: Maybe Text -- ^ Label text for the field. (optional)
     , textAlignment :: Maybe Alignment -- ^ Alignment for the field's contents. Not allowed for primary fields. (optional)
-    , value         :: a -- ^ Value of the field. Must be a string, ISO 8601 date or a number. (required)
+    , value         :: PassValue -- ^ Value of the field. Must be a string, ISO 8601 date or a number. (required)
 
     -- Date style keys (all optional). If any key is present, the field will be treated as a date.
     , dateStyle     :: Maybe DateTimeStyle -- ^ Style of date to display (optional)
@@ -111,7 +129,7 @@ data PassField = forall a . ToPassField a => PassField {
     -- Number style keys (all optional). Not allowed if the field is not a number.
     , currencyCode  :: Maybe Text -- ^ ISO 4217 currency code for the field's value (optional)
     , numberStyle   :: Maybe NumberStyle -- ^ Style of number to display. See @NSNumberFormatterStyle@ docs for more information. (optional)
-} deriving (Typeable)
+} deriving (Eq, Ord, Typeable)
 
 -- |BoardingPass transit type. Only necessary for Boarding Passes.
 data TransitType = Air
@@ -119,24 +137,20 @@ data TransitType = Air
                  | Bus
                  | Train
                  | GenericTransit
-    deriving (Typeable)
+    deriving (Eq, Ord, Typeable)
 
--- |Newtype wrapper around 'UTCTime' with a 'ToJSON' instance that ensures Passbook-compatible
---  time rendering. (ISO 8601)
-newtype PassDate = PassDate UTCTime deriving (Typeable)
-
--- |The type of a pass including the specific auxiliary, main, etc. fields
+-- |The type of a pass including its fields
 data PassType = BoardingPass TransitType PassContent
               | Coupon PassContent
               | Event PassContent
               | GenericPass PassContent
               | StoreCard PassContent
-    deriving (Typeable)
+    deriving (Eq, Ord, Typeable)
 
 data WebService = WebService {
       authenticationToken        :: Text -- ^ Authentication token for use with the web service. Must be 16 characters or longer (optional)
     , webServiceURL              :: Text -- ^ The URL of a web service that conforms to the API described in the Passbook Web Service Reference (optional)
-} deriving (Typeable)
+} deriving (Eq, Ord, Show, Typeable)
 
 -- |The fields within a pass
 data PassContent = PassContent {
@@ -145,7 +159,7 @@ data PassContent = PassContent {
     , secondaryFields :: [PassField] -- ^ Fields to be displayed on the front of the pass.
     , auxiliaryFields :: [PassField] -- ^ Additional fields to be displayed on the front of the pass.
     , backFields      :: [PassField] -- ^ Fields to be on the back of the pass.
-} deriving (Typeable)
+} deriving (Eq, Ord, Typeable)
 
 -- |A complete pass
 data Pass = Pass {
@@ -162,7 +176,7 @@ data Pass = Pass {
 
     -- relevance keys
     , locations                  :: [Location]  -- ^ Locations where the pass is relevant (e.g. that of a store) (optional)
-    , relevantDate               :: Maybe PassDate -- ^ ISO 8601 formatted date for when the pass becomes relevant (optional)
+    , relevantDate               :: Maybe RelevantDate -- ^ ISO 8601 formatted date for when the pass becomes relevant (optional)
 
     -- visual appearance key
     , barcode                    :: Maybe Barcode -- ^ Barcode information (optional)
@@ -176,7 +190,7 @@ data Pass = Pass {
     , webService                 :: Maybe WebService -- ^ Contains the authentication token (16 characters or longer) and the API end point for a Web Service
 
     , passContent                :: PassType -- ^ The kind of pass and the passes' fields (required)
-} deriving (Typeable)
+} deriving (Eq, Ord, Typeable)
 
 -- * JSON instances
 
@@ -298,7 +312,6 @@ instance Show NumberStyle where
 instance ToJSON NumberStyle where
     toJSON = toJSON . pack . show
 
-
 instance Show TransitType where
     show Air = "PKTransitTypeAir"
     show Boat = "PKTransitTypeBoat"
@@ -309,13 +322,19 @@ instance Show TransitType where
 instance ToJSON TransitType where
     toJSON = toJSON . pack . show
 
-instance Show PassDate where
-    show (PassDate d) =
-        let timeFormat = iso8601DateFormat $ Just $ timeFmt defaultTimeLocale
-        in  formatTime defaultTimeLocale timeFormat d
+instance ToJSON PassValue where
+    toJSON (PassInt i) = toJSON i
+    toJSON (PassDouble d) = toJSON d
+    toJSON (PassText t) = toJSON t
+    toJSON (PassDate d) = jsonPassdate d
 
-instance ToJSON PassDate where
-    toJSON = toJSON . pack . show
+instance ToJSON RelevantDate where
+    toJSON (RelevantDate d) = jsonPassdate d
+
+-- |Correctly renders a @PassDate@ in JSON (ISO 8601)
+jsonPassdate d =
+    let timeFormat = iso8601DateFormat $ Just $ timeFmt defaultTimeLocale
+    in  toJSON $ formatTime defaultTimeLocale timeFormat d
 
 instance Show PassType where
     show (BoardingPass _ _) = "boardingPass"
@@ -323,6 +342,10 @@ instance Show PassType where
     show (Event _) = "eventTicket"
     show (GenericPass _) = "generic"
     show (StoreCard _) = "storeCard"
+
+deriving instance Show PassField
+deriving instance Show PassContent
+deriving instance Show Pass
 
 -- * Auxiliary functions
 
@@ -341,11 +364,9 @@ rgb (r, g, b) | isInRange r && isInRange b && isInRange b = Just $ RGB r g b
 
 -- |Creates a simple 'PassField' with just a key, a value and an optional label.
 --  All the other optional fields are set to 'Nothing'.
-mkSimpleField :: ToPassField a
-              => Text -- ^ Key
-              -> a -- ^ Value
+mkSimpleField :: Text -- ^ Key
+              -> PassValue -- ^ Value
               -> Maybe Text -- ^ Label
               -> PassField
 mkSimpleField k v l = PassField Nothing k l Nothing v Nothing Nothing
                                 Nothing Nothing Nothing
-
