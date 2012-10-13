@@ -39,7 +39,8 @@ module Passbook.Types(
     , mkSimpleField
     ) where
 
-import Control.Applicative ((<*>), (<$>))
+import Control.Applicative ((<*>), (<$>), pure)
+import Control.Monad (mzero)
 import           Data.Aeson
 import           Data.Aeson.TH
 import           Data.Aeson.Types
@@ -283,6 +284,7 @@ instance ToJSON RGBColor where
 instance ToJSON BarcodeFormat where
     toJSON QRCode = toJSON ("PKBarcodeFormatQR" :: Text)
     toJSON PDF417 = toJSON ("PKBarcodeFormatPDF417" :: Text)
+    toJSON Aztec  = toJSON ("PKBarcodeFormatAztec" :: Text)
 
 instance Show Alignment where
     show LeftAlign = "PKTextAlignmentLeft"
@@ -346,6 +348,45 @@ instance Show PassType where
 deriving instance Show PassField
 deriving instance Show PassContent
 deriving instance Show Pass
+
+-- * Implementing FromJSON
+
+-- $(deriveFromJSON id ''PassContent)
+
+instance FromJSON Location where
+    parseJSON (Object v) = Location         <$>
+                           v .: "latitude"  <*>
+                           v .: "longitude" <*>
+                           v .:? "altitude" <*>
+                           v .:? "relevantText"
+    parseJSON _ = mzero
+
+instance FromJSON Barcode where
+    parseJSON (Object v) = Barcode         <$>
+                           v .:? "altText" <*>
+                           v .: "format"   <*>
+                           v .: "message"  <*>
+                           v .: "messageEncoding"
+    parseJSON _ = mzero
+
+instance FromJSON BarcodeFormat where
+    parseJSON (String t) = case t of
+        "PKBarcodeFormatQR" -> pure QRCode
+        "PKBarcodeFormatAztec" -> pure Aztec
+        "PKBarcodeFormatPDF417" -> pure PDF417
+        _ -> fail "Could not parse barcode format"
+    parseJSON _ = mzero
+
+instance FromJSON TransitType where
+    parseJSON (String t) = case t of
+        "PKTransitTypeAir" -> pure Air
+        "PKTransitTypeBoat" -> pure Boat
+        "PKTransitTypeBus" -> pure Bus
+        "PKTransitTypeTrain" -> pure Train
+        "PKTransitTypeGeneric" -> pure GenericTransit
+        _ -> fail "Could not parse transit type"
+    parseJSON _ = mzero
+
 
 -- * Auxiliary functions
 
