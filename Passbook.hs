@@ -116,7 +116,7 @@ signpassWithId :: ST.Text -- ^ The pass ID
                -> IO FilePath
 signpassWithId passId passIn passOut pass = shelly $ do
     let tmp = passOut </> passId
-        lazyId = fromStrict passId
+        lazyId = LT.fromStrict passId
     cp_r passIn tmp
     liftIO $ renderPass (tmp </> "pass.json") pass { serialNumber = passId }
     signcmd lazyId tmp passOut
