@@ -497,7 +497,6 @@ instance FromJSON Pass where
         wbs = parseWebService <$> v .:? "authenticationToken"
                               <*> v .:? "webServiceURL"
 
-
 -- * Auxiliary functions
 
 -- |This function takes a 'Text' and a 'BarcodeFormat' and uses the text
