@@ -9,6 +9,9 @@
     I intend to move the signing process to a Haskell native OpenSSL binding later
     on, but due to time constraints didn't get around to it yet.
 
+    If you want to use this module with an existing .pkpass file, you can import its
+    @pass.json@ file using the function 'loadPass'.
+
     The function 'signpass' creates a random UUID during the signing process, uses this UUID
     as the passes' serial number and returns it along with the path to the signed pass.
 
@@ -50,7 +53,8 @@ module Passbook ( signpass
                 , signpassWithId
                 , signpassWithModifier
                 , genPassId
-                , updateBarcode ) where
+                , updateBarcode
+                , loadPass ) where
 
 import           Data.Aeson
 import           Data.Conduit
@@ -64,6 +68,11 @@ import           Prelude                 hiding (FilePath)
 import           Shelly
 import           System.Directory        (doesFileExist)
 import           System.Random
+import Data.ByteString.Lazy as LB
+import Control.Monad (liftM)
+import Codec.Archive.Zip
+import Filesystem.Path.CurrentOS (encodeString)
+
 default (LT.Text)
 
 -- |Takes the filepaths to the folder containing the path assets
@@ -132,3 +141,16 @@ signcmd :: Text -- ^ The pass identifier / serial number to uniquely identify th
 signcmd uuid assetFolder passOut =
     run_ "signpass" [ "-p", toTextIgnore assetFolder -- The input folder
                     , "-o", toTextIgnore $passOut </> (LT.append uuid ".pkpass") ] -- Name of the output file
+
+-- |Tries to parse the pass.json file contained in a .pkpass into a valid
+--  'Pass'. If Passbook accepts the .pkpass file, this function should never
+--  return @Nothing@.
+loadPass :: FilePath -- ^ Location of the .pkpass file
+         -> IO (Maybe Pass)
+loadPass path = do
+    archive <- (liftM toArchive) $ LB.readFile $ encodeString path
+    case findEntryByPath "pass.json" archive of
+        Nothing   -> return Nothing
+        Just pass -> return $ decode $ fromEntry pass
+
+
