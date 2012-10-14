@@ -1,11 +1,11 @@
+{-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE QuasiQuotes               #-}
 {-# LANGUAGE RecordWildCards           #-}
-{-# LANGUAGE TemplateHaskell           #-}
-{-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE StandaloneDeriving        #-}
+{-# LANGUAGE TemplateHaskell           #-}
 
 {- |This module provides types and functions for type-safe generation of PassBook's @pass.json@ files.
 
@@ -39,19 +39,22 @@ module Passbook.Types(
     , mkSimpleField
     ) where
 
-import Control.Applicative ((<*>), (<$>), pure)
-import Control.Monad (mzero)
+import           Control.Applicative    (pure, (<$>), (<*>))
+import           Control.Monad          (mzero)
 import           Data.Aeson
 import           Data.Aeson.TH
-import           Data.Aeson.Types
-import           Data.Typeable
-import           Data.Text             (Text, pack)
+import           Data.Aeson.Types       hiding (Parser)
+import           Data.Attoparsec.Number
+import           Data.Attoparsec.Text
+import           Data.Text              (Text, pack, unpack)
 import           Data.Time
+import           Data.Typeable
 import           System.Locale
 import           Text.Shakespeare.Text
+import qualified Data.HashMap.Strict as HM
 
 -- | Auxiliary type to ensure that field values are rendered correctly
-data PassValue = PassInt Int
+data PassValue = PassInt Integer
                | PassDouble Double
                | PassDate UTCTime
                | PassText Text
@@ -149,8 +152,8 @@ data PassType = BoardingPass TransitType PassContent
     deriving (Eq, Ord, Typeable)
 
 data WebService = WebService {
-      authenticationToken        :: Text -- ^ Authentication token for use with the web service. Must be 16 characters or longer (optional)
-    , webServiceURL              :: Text -- ^ The URL of a web service that conforms to the API described in the Passbook Web Service Reference (optional)
+      authenticationToken :: Text -- ^ Authentication token for use with the web service. Must be 16 characters or longer (optional)
+    , webServiceURL       :: Text -- ^ The URL of a web service that conforms to the API described in the Passbook Web Service Reference (optional)
 } deriving (Eq, Ord, Show, Typeable)
 
 -- |The fields within a pass
@@ -166,7 +169,6 @@ data PassContent = PassContent {
 data Pass = Pass {
     -- Required keys
       description                :: Text -- ^ Brief description of the pass (required)
-    , formatVersion              :: Int  -- ^ Version of the file format. The value must be 1. (required)
     , organizationName           :: Text -- ^ Display name of the organization that signed the pass (required)
     , passTypeIdentifier         :: Text -- ^ Pass type identifier, as issued by Apple (required)
     , serialNumber               :: Text -- ^ Unique serial number for the pass (required)
@@ -245,7 +247,7 @@ instance ToJSON Pass where
                   $ ("authenticationToken" -: (fmap authenticationToken) webService)
                   $ ("webServiceURL" -: (fmap webServiceURL) webService)
                   $ [ "description" .= description
-                    , "formatVersion" .= (1 :: Int) -- Harcoding this because it should not be changed
+                    , "formatVersion" .= (1 :: Int) -- Hardcoding this because it should not be changed
                     , "organizationName" .= organizationName
                     , "passTypeIdentifier" .= passTypeIdentifier
                     , "serialNumber" .= serialNumber
@@ -333,10 +335,15 @@ instance ToJSON PassValue where
 instance ToJSON RelevantDate where
     toJSON (RelevantDate d) = jsonPassdate d
 
+-- | The ISO 8601 time/date encoding used by Passbook
+timeFormat = iso8601DateFormat $ Just $ timeFmt defaultTimeLocale
+
 -- |Correctly renders a @PassDate@ in JSON (ISO 8601)
-jsonPassdate d =
-    let timeFormat = iso8601DateFormat $ Just $ timeFmt defaultTimeLocale
-    in  toJSON $ formatTime defaultTimeLocale timeFormat d
+jsonPassdate = toJSON . formatTime defaultTimeLocale timeFormat
+
+-- |Helper function that parses a 'UTCTime' out of a Text
+parseJsonDate :: Text -> Maybe UTCTime
+parseJsonDate = parseTime defaultTimeLocale timeFormat . unpack
 
 instance Show PassType where
     show (BoardingPass _ _) = "boardingPass"
@@ -351,22 +358,32 @@ deriving instance Show Pass
 
 -- * Implementing FromJSON
 
--- $(deriveFromJSON id ''PassContent)
-
-instance FromJSON Location where
-    parseJSON (Object v) = Location         <$>
-                           v .: "latitude"  <*>
-                           v .: "longitude" <*>
-                           v .:? "altitude" <*>
-                           v .:? "relevantText"
+instance FromJSON Alignment where
+    parseJSON (String t) = case t of
+        "PKTextAlignmentLeft" -> pure LeftAlign
+        "PKTextAlignmentCenter" -> pure Center
+        "PKTextAlignmentRight" -> pure RightAlign
+        "PKTextAlignment" -> pure Natural
+        _ -> fail "Could not parse text alignment style"
     parseJSON _ = mzero
 
-instance FromJSON Barcode where
-    parseJSON (Object v) = Barcode         <$>
-                           v .:? "altText" <*>
-                           v .: "format"   <*>
-                           v .: "message"  <*>
-                           v .: "messageEncoding"
+instance FromJSON DateTimeStyle where
+    parseJSON (String t) = case t of
+        "NSDateFormatterNoStyle" -> pure None
+        "NSDateFormatterShortStyle" -> pure Short
+        "NSDateFormatterMediumStyle" -> pure Medium
+        "NSDateFormatterLongStyle" -> pure Long
+        "NSDateFormatterFullStyle" -> pure Full
+        _ -> fail "Could not parse date formatting style"
+    parseJSON _ = mzero
+
+instance FromJSON NumberStyle where
+    parseJSON (String t) = case t of
+        "PKNumberStyleDecimal" -> pure Decimal
+        "PKNumberStylePercent" -> pure Percent
+        "PKNumberStyleScientific" -> pure Scientific
+        "PKNumberStyleSpellOut" -> pure SpellOut
+        _ -> fail "Could not parse number formatting style"
     parseJSON _ = mzero
 
 instance FromJSON BarcodeFormat where
@@ -386,6 +403,113 @@ instance FromJSON TransitType where
         "PKTransitTypeGeneric" -> pure GenericTransit
         _ -> fail "Could not parse transit type"
     parseJSON _ = mzero
+
+instance FromJSON Location where
+    parseJSON (Object v) = Location         <$>
+                           v .: "latitude"  <*>
+                           v .: "longitude" <*>
+                           v .:? "altitude" <*>
+                           v .:? "relevantText"
+    parseJSON _ = mzero
+
+instance FromJSON Barcode where
+    parseJSON (Object v) = Barcode         <$>
+                           v .:? "altText" <*>
+                           v .: "format"   <*>
+                           v .: "message"  <*>
+                           v .: "messageEncoding"
+    parseJSON _ = mzero
+
+instance FromJSON PassValue where
+    parseJSON (Number (I i)) = pure $ PassInt i
+    parseJSON (Number (D d)) = pure $ PassDouble d
+    parseJSON (String t) = case parseJsonDate t of
+        Just d  -> pure $ PassDate d
+        Nothing -> pure $ PassText t
+    parseJSON _ = fail "Could not parse pass field value"
+
+instance FromJSON PassField where
+    parseJSON (Object v) =
+        PassField             <$>
+        v .:? "changeMessage" <*>
+        v .: "key"            <*>
+        v .:? "label"         <*>
+        v .:? "textAlignment" <*>
+        v .: "value"          <*>
+        v .:? "dateStyle"     <*>
+        v .:? "timeStyle"     <*>
+        v .:? "isRelative"    <*>
+        v .:? "currencyCode"  <*>
+        v .:? "numberStyle"
+    parseJSON _ = mzero
+
+instance FromJSON RelevantDate where
+    parseJSON (String t) = case parseJsonDate t of
+        (Just d) -> pure $ RelevantDate d
+        Nothing  -> fail "Could not parse relevant date"
+    parseJSON _ = mzero
+
+$(deriveFromJSON id ''PassContent)
+
+-- |Tries to parse a web service
+parseWebService :: Maybe Text -> Maybe Text -> Maybe WebService
+parseWebService Nothing _ = Nothing
+parseWebService _ Nothing = Nothing
+parseWebService (Just token) (Just url) = Just $ WebService token url
+
+-- |Parses an RGBColor. This is not piped through 'rgb', thus it is not
+--  checked whether the specified colour values are in range.
+parseRGB :: Parser RGBColor
+parseRGB = RGB <$> ("rgb(" .*> decimal)
+               <*> ("," .*> decimal)
+               <*> ("," .*> decimal)
+
+instance FromJSON RGBColor where
+    parseJSON (String t) = case parseOnly parseRGB t of
+        Left f -> fail f
+        Right r -> pure r
+    parseJSON _ = mzero
+
+instance FromJSON PassType where
+    parseJSON (Object v)
+        | HM.member "boardingPass" v =
+            withValue "boardingPass" $ \val -> case val of
+              Object o -> BoardingPass <$> o .: "transitType"
+                                       <*> parseJSON val
+              _ -> fail "Could not parse Boarding Pass"
+        | HM.member "coupon" v =
+            withValue "coupon" $ \o -> Coupon <$> parseJSON o
+        | HM.member "eventTicket" v =
+            withValue "eventTicket" $ \o -> Event <$> parseJSON o
+        | HM.member "storeCard" v =
+            withValue "storeCard" $ \o -> StoreCard <$> parseJSON o
+        | HM.member "generic" v =
+            withValue "generic" $ \o -> GenericPass <$> parseJSON o
+      where
+        withValue k f= f $ v HM.! k
+
+instance FromJSON Pass where
+    parseJSON o@(Object v) =
+        Pass <$>
+        v .: "description"                <*>
+        v .: "organizationName"           <*>
+        v .: "passTypeIdentifier"         <*>
+        v .: "serialNumber"               <*>
+        v .: "teamIdentifier"             <*>
+        v .: "associatedStoreIdentifiers" <*>
+        v .: "locations"                  <*>
+        v .:? "relevantDate"              <*>
+        v .:? "barcode"                   <*>
+        v .:? "backgroundColor"           <*>
+        v .:? "foregroundColor"           <*>
+        v .:? "labelColor"                <*>
+        v .:? "logoText"                  <*>
+        v .:? "suppressStripShine"        <*>
+        wbs                               <*>
+        parseJSON o
+      where
+        wbs = parseWebService <$> v .:? "authenticationToken"
+                              <*> v .:? "webServiceURL"
 
 
 -- * Auxiliary functions
