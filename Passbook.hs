@@ -54,7 +54,8 @@ module Passbook ( signpass
                 , signpassWithModifier
                 , genPassId
                 , updateBarcode
-                , loadPass ) where
+                , loadPass
+                , module Passbook.Types ) where
 
 import           Codec.Archive.Zip
 import           Control.Monad             (liftM)
