@@ -11,7 +11,7 @@ license-file:        LICENSE
 author:              Vincent Ambo
 maintainer:          geva@humac.com
 -- copyright:           
-category:            iOS
+category:            Apple
 build-type:          Simple
 cabal-version:       >=1.8
 
@@ -19,24 +19,18 @@ source-repository    head
     type: git
     location: https://github.com/tazjin/hs-pkpass.git
 
-source-repository    this
-    type: git
-    location: https://github.com/tazjin/hs-pkpass/tree/v0.1
-    tag: 0.1
-
-
 library
   exposed-modules:     Passbook, Passbook.Types
   -- other-modules:       
   build-depends:       base >= 4 && < 5,
+                       directory >= 1 && < 2,
                        aeson ==0.6.*,
                        conduit ==0.5.*,
                        filesystem-conduit ==0.5.*,
                        text ==0.11.*,
                        uuid ==1.2.*,
                        shelly ==0.14.*,
-                       directory ==1.1.*,
-                       random ==1.0.*,
+                       random == 1.0.*,
                        time ==1.4.*,
                        old-locale ==1.0.*,
                        shakespeare-text ==1.0.*,

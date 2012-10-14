@@ -199,7 +199,7 @@ data Pass = Pass {
 
 -- |Conditionally appends something wrapped in Maybe to a list of 'Pair'. This is necessary
 --  because Passbook can't deal with null values in JSON.
-(-:) :: ToJSON a => Text -> Maybe a -> ([Pair] -> [Pair])
+(-:) :: ToJSON a => Text -> Maybe a -> [Pair] -> [Pair]
 (-:) _ Nothing = id
 (-:) key (Just value) = ((key .= value) :)
 
@@ -244,8 +244,8 @@ instance ToJSON Pass where
                   $ ("labelColor" -: labelColor)
                   $ ("logoText" -: logoText)
                   $ ("suppressStripShine" -: suppressStripShine)
-                  $ ("authenticationToken" -: (fmap authenticationToken) webService)
-                  $ ("webServiceURL" -: (fmap webServiceURL) webService)
+                  $ ("authenticationToken" -: fmap authenticationToken webService)
+                  $ ("webServiceURL" -: fmap webServiceURL webService)
                   $ [ "description" .= description
                     , "formatVersion" .= (1 :: Int) -- Hardcoding this because it should not be changed
                     , "organizationName" .= organizationName
@@ -254,7 +254,7 @@ instance ToJSON Pass where
                     , "teamIdentifier" .= teamIdentifier
                     , "associatedStoreIdentifiers" .= associatedStoreIdentifiers
                     , "locations" .= locations
-                    , (pack $ show passContent) .= passContent]
+                    , pack (show passContent) .= passContent]
       in object pairs
 
 -- |Internal helper function to handle Boarding Passes correctly.

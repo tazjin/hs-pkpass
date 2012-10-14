@@ -121,11 +121,11 @@ signpassWithId passId passIn passOut pass = shelly $ do
     liftIO $ renderPass (tmp </> "pass.json") pass { serialNumber = passId }
     signcmd lazyId tmp passOut
     rm_rf tmp
-    return (passOut </> (LT.append lazyId ".pkpass"))
+    return (passOut </> LT.append lazyId ".pkpass")
 
 -- |Generates a random UUID for a Pass using "Data.UUID" and "System.Random"
 genPassId :: IO ST.Text
-genPassId = randomIO >>= return . ST.pack . toString
+genPassId = liftM (ST.pack . toString) randomIO
 
 -- |Render and store a pass.json at the desired location.
 renderPass :: FilePath -> Pass -> IO ()
@@ -140,7 +140,7 @@ signcmd :: Text -- ^ The pass identifier / serial number to uniquely identify th
         -> Sh ()
 signcmd uuid assetFolder passOut =
     run_ "signpass" [ "-p", toTextIgnore assetFolder -- The input folder
-                    , "-o", toTextIgnore $passOut </> (LT.append uuid ".pkpass") ] -- Name of the output file
+                    , "-o", toTextIgnore $ passOut </> LT.append uuid ".pkpass" ] -- Name of the output file
 
 -- |Tries to parse the pass.json file contained in a .pkpass into a valid
 --  'Pass'. If Passbook accepts the .pkpass file, this function should never
@@ -148,9 +148,7 @@ signcmd uuid assetFolder passOut =
 loadPass :: FilePath -- ^ Location of the .pkpass file
          -> IO (Maybe Pass)
 loadPass path = do
-    archive <- (liftM toArchive) $ LB.readFile $ encodeString path
+    archive <- liftM toArchive $ LB.readFile $ encodeString path
     case findEntryByPath "pass.json" archive of
         Nothing   -> return Nothing
         Just pass -> return $ decode $ fromEntry pass
-
-
