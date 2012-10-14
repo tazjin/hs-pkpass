@@ -46,12 +46,12 @@ import           Data.Aeson.TH
 import           Data.Aeson.Types       hiding (Parser)
 import           Data.Attoparsec.Number
 import           Data.Attoparsec.Text
+import qualified Data.HashMap.Strict    as HM
 import           Data.Text              (Text, pack, unpack)
 import           Data.Time
 import           Data.Typeable
 import           System.Locale
 import           Text.Shakespeare.Text
-import qualified Data.HashMap.Strict as HM
 
 -- | Auxiliary type to ensure that field values are rendered correctly
 data PassValue = PassInt Integer

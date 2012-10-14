@@ -56,22 +56,22 @@ module Passbook ( signpass
                 , updateBarcode
                 , loadPass ) where
 
+import           Codec.Archive.Zip
+import           Control.Monad             (liftM)
 import           Data.Aeson
+import           Data.ByteString.Lazy      as LB
 import           Data.Conduit
-import           Data.Conduit.Binary     hiding (sinkFile)
+import           Data.Conduit.Binary       hiding (sinkFile)
 import           Data.Conduit.Filesystem
-import qualified Data.Text               as ST
-import           Data.Text.Lazy          as LT
+import qualified Data.Text                 as ST
+import           Data.Text.Lazy            as LT
 import           Data.UUID
+import           Filesystem.Path.CurrentOS (encodeString)
 import           Passbook.Types
-import           Prelude                 hiding (FilePath)
+import           Prelude                   hiding (FilePath)
 import           Shelly
-import           System.Directory        (doesFileExist)
+import           System.Directory          (doesFileExist)
 import           System.Random
-import Data.ByteString.Lazy as LB
-import Control.Monad (liftM)
-import Codec.Archive.Zip
-import Filesystem.Path.CurrentOS (encodeString)
 
 default (LT.Text)
 
