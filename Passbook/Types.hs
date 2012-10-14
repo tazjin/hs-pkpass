@@ -16,8 +16,13 @@
     It ensures that passes are created correctly wherever possible. Currently, NSBundle localization is not supported.
 -}
 module Passbook.Types(
-    -- * Passbook field types
+    -- * Passbook types
       PassValue(..)
+    , PassField(..)
+    , PassType(..)
+    , PassContent(..)
+    , Pass(..)
+    -- * Passbook field types
     , RelevantDate
     , Location(..)
     , RGBColor
@@ -28,11 +33,6 @@ module Passbook.Types(
     , NumberStyle(..)
     , TransitType(..)
     , WebService(..)
-    -- * Passbook types
-    , PassField(..)
-    , PassType(..)
-    , PassContent(..)
-    , Pass(..)
     -- * Auxiliary functions
     , rgb
     , mkBarcode
