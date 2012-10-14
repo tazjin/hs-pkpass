@@ -4,7 +4,6 @@
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE QuasiQuotes               #-}
 {-# LANGUAGE RecordWildCards           #-}
-{-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE TemplateHaskell           #-}
 
 {- |This module provides types and functions for type-safe generation of PassBook's @pass.json@ files.
@@ -58,12 +57,12 @@ data PassValue = PassInt Integer
                | PassDouble Double
                | PassDate UTCTime
                | PassText Text
-    deriving (Eq, Ord, Show, Typeable)
+    deriving (Eq, Ord, Show, Read, Typeable)
 
 -- * Passbook data types
 
 -- |Newtype wrapper around 'UTCTime' for use in the @relevantDate@ field of a pass.
-newtype RelevantDate = RelevantDate UTCTime deriving (Eq, Ord, Show, Typeable)
+newtype RelevantDate = RelevantDate UTCTime deriving (Eq, Ord, Show, Read, Typeable)
 
 -- |A location field
 data Location = Location {
@@ -71,19 +70,19 @@ data Location = Location {
     , longitude    :: Double -- ^ Longitude, in degrees, of the location (required)
     , altitude     :: Maybe Double -- ^ Altitude, in meters, of the location (optional)
     , relevantText :: Maybe Text -- ^ Text displayed on the lock screen when the pass is relevant (optional)
-} deriving (Eq, Ord, Show, Typeable)
+} deriving (Eq, Ord, Show, Read, Typeable)
 
 -- |A simple RGB color value. In combination with the 'rgb' function this can be written just like in
 --  CSS, e.g. @rgb(43, 53, 65)@. The 'rgb' function also ensures that the provided values are valid.
 data RGBColor = RGB Int Int Int
-    deriving (Eq, Ord, Show, Typeable)
+    deriving (Eq, Ord, Show, Read, Typeable)
 
 -- |Barcode is constructed by a Barcode format, an encoding
 --  type and the Barcode message.
 data BarcodeFormat = QRCode
                    | PDF417
                    | Aztec
-    deriving (Eq, Ord, Show, Typeable)
+    deriving (Eq, Ord, Show, Read, Typeable)
 
 -- |A pass barcode. In most cases the helper function 'mkBarcode' should be sufficient.
 data Barcode = Barcode {
@@ -91,14 +90,14 @@ data Barcode = Barcode {
     , format          :: BarcodeFormat -- ^ Barcode format (required)
     , message         :: Text -- ^ Message / payload to be displayed as a barcode (required)
     , messageEncoding :: Text -- ^ Barcode encoding. Default in the mkBarcode functions is iso-8859-1 (required)
-} deriving (Eq, Ord, Show, Typeable)
+} deriving (Eq, Ord, Show, Read, Typeable)
 
 -- |Pass field alignment
 data Alignment = LeftAlign
                | Center
                | RightAlign
                | Natural
-    deriving (Eq, Ord, Typeable)
+    deriving (Eq, Ord, Show, Read, Typeable)
 
 -- |Pass field date/time display style
 data DateTimeStyle = None -- ^ Corresponds to @NSDateFormatterNoStyle@
@@ -106,14 +105,14 @@ data DateTimeStyle = None -- ^ Corresponds to @NSDateFormatterNoStyle@
                    | Medium -- ^ Corresponds to @NSDateFormatterMediumStyle@
                    | Long -- ^ Corresponds to @NSDateFormatterLongStyle@
                    | Full -- ^ Corresponds to @NSDateFormatterFullStyle@
-    deriving (Eq, Ord, Typeable)
+    deriving (Eq, Ord, Show, Read, Typeable)
 
 -- |Pass field number display style
 data NumberStyle = Decimal
                  | Percent
                  | Scientific
                  | SpellOut
-    deriving (Eq, Ord, Typeable)
+    deriving (Eq, Ord, Show, Read, Typeable)
 
 -- |A single pass field. The type 'PassValue' holds the fields value and ensures that the JSON output is compatible with Passbook.
 --  To create a very simple key/value field containing text you can use the 'mkSimpleField' function.
@@ -133,7 +132,7 @@ data PassField = PassField {
     -- Number style keys (all optional). Not allowed if the field is not a number.
     , currencyCode  :: Maybe Text -- ^ ISO 4217 currency code for the field's value (optional)
     , numberStyle   :: Maybe NumberStyle -- ^ Style of number to display. See @NSNumberFormatterStyle@ docs for more information. (optional)
-} deriving (Eq, Ord, Typeable)
+} deriving (Eq, Ord, Show, Read, Typeable)
 
 -- |BoardingPass transit type. Only necessary for Boarding Passes.
 data TransitType = Air
@@ -141,7 +140,7 @@ data TransitType = Air
                  | Bus
                  | Train
                  | GenericTransit
-    deriving (Eq, Ord, Typeable)
+    deriving (Eq, Ord, Show, Read, Typeable)
 
 -- |The type of a pass including its fields
 data PassType = BoardingPass TransitType PassContent
@@ -149,12 +148,12 @@ data PassType = BoardingPass TransitType PassContent
               | Event PassContent
               | GenericPass PassContent
               | StoreCard PassContent
-    deriving (Eq, Ord, Typeable)
+    deriving (Eq, Ord, Show, Read, Typeable)
 
 data WebService = WebService {
       authenticationToken :: Text -- ^ Authentication token for use with the web service. Must be 16 characters or longer (optional)
     , webServiceURL       :: Text -- ^ The URL of a web service that conforms to the API described in the Passbook Web Service Reference (optional)
-} deriving (Eq, Ord, Show, Typeable)
+} deriving (Eq, Ord, Show, Read, Typeable)
 
 -- |The fields within a pass
 data PassContent = PassContent {
@@ -163,7 +162,7 @@ data PassContent = PassContent {
     , secondaryFields :: [PassField] -- ^ Fields to be displayed on the front of the pass.
     , auxiliaryFields :: [PassField] -- ^ Additional fields to be displayed on the front of the pass.
     , backFields      :: [PassField] -- ^ Fields to be on the back of the pass.
-} deriving (Eq, Ord, Typeable)
+} deriving (Eq, Ord, Show, Read, Typeable)
 
 -- |A complete pass
 data Pass = Pass {
@@ -193,7 +192,7 @@ data Pass = Pass {
     , webService                 :: Maybe WebService -- ^ Contains the authentication token (16 characters or longer) and the API end point for a Web Service
 
     , passContent                :: PassType -- ^ The kind of pass and the passes' fields (required)
-} deriving (Eq, Ord, Typeable)
+} deriving (Eq, Ord, Show, Read, Typeable)
 
 -- * JSON instances
 
@@ -254,7 +253,7 @@ instance ToJSON Pass where
                     , "teamIdentifier" .= teamIdentifier
                     , "associatedStoreIdentifiers" .= associatedStoreIdentifiers
                     , "locations" .= locations
-                    , pack (show passContent) .= passContent]
+                    , passTypeName passContent .= passContent]
       in object pairs
 
 -- |Internal helper function to handle Boarding Passes correctly.
@@ -283,48 +282,46 @@ renderRGB (RGB r g b) = [st|rgb(#{show r},#{show g},#{show b})|]
 instance ToJSON RGBColor where
     toJSON = toJSON . renderRGB
 
+-- |Returns the correct key name for the supplied 'PassType'
+passTypeName :: PassType -> Text
+passTypeName (BoardingPass _ _) = "boardingPass"
+passTypeName (Coupon _) = "coupon"
+passTypeName (Event _) = "eventTicket"
+passTypeName (GenericPass _) = "generic"
+passTypeName (StoreCard _) = "storeCard"
+
+
 instance ToJSON BarcodeFormat where
     toJSON QRCode = toJSON ("PKBarcodeFormatQR" :: Text)
     toJSON PDF417 = toJSON ("PKBarcodeFormatPDF417" :: Text)
     toJSON Aztec  = toJSON ("PKBarcodeFormatAztec" :: Text)
 
-instance Show Alignment where
-    show LeftAlign = "PKTextAlignmentLeft"
-    show Center = "PKTextAlignmentCenter"
-    show RightAlign = "PKTextAlignmentRight"
-    show Natural = "PKTextAlignment"
-
 instance ToJSON Alignment where
-    toJSON = toJSON . pack . show
-
-instance Show DateTimeStyle where
-    show None = "NSDateFormatterNoStyle"
-    show Short = "NSDateFormatterShortStyle"
-    show Medium = "NSDateFormatterMediumStyle"
-    show Long = "NSDateFormatterLongStyle"
-    show Full = "NSDateFormatterFullStyle"
+    toJSON LeftAlign  = toJSON ("PKTextAlignmentLeft" :: Text)
+    toJSON Center     = toJSON ("PKTextAlignmentCenter" :: Text)
+    toJSON RightAlign = toJSON ("PKTextAlignmentRight" :: Text)
+    toJSON Natural    = toJSON ("PKTextAlignment" :: Text)
 
 instance ToJSON DateTimeStyle where
-    toJSON = toJSON . pack . show
-
-instance Show NumberStyle where
-    show Decimal = "PKNumberStyleDecimal"
-    show Percent = "PKNumberStylePercent"
-    show Scientific = "PKNumberStyleScientific"
-    show SpellOut = "PKNumberStyleSpellOut"
+    toJSON None    = toJSON ("NSDateFormatterNoStyle" :: Text)
+    toJSON Short   = toJSON ("NSDateFormatterShortStyle" :: Text)
+    toJSON Medium  = toJSON ("NSDateFormatterMediumStyle" :: Text)
+    toJSON Long    = toJSON ("NSDateFormatterLongStyle" :: Text)
+    toJSON Full    = toJSON ("NSDateFormatterFullStyle" :: Text)
 
 instance ToJSON NumberStyle where
-    toJSON = toJSON . pack . show
+    toJSON Decimal    = toJSON ("PKNumberStyleDecimal" :: Text)
+    toJSON Percent    = toJSON ("PKNumberStylePercent" :: Text)
+    toJSON Scientific = toJSON ("PKNumberStyleScientific" :: Text)
+    toJSON SpellOut   = toJSON ("PKNumberStyleSpellOut" :: Text)
 
-instance Show TransitType where
-    show Air = "PKTransitTypeAir"
-    show Boat = "PKTransitTypeBoat"
-    show Bus = "PKTransitTypeBus"
-    show Train = "PKTransitTypeTrain"
-    show GenericTransit = "PKTransitTypeGeneric"
 
 instance ToJSON TransitType where
-    toJSON = toJSON . pack . show
+    toJSON Air            = toJSON ("PKTransitTypeAir" :: Text)
+    toJSON Boat           = toJSON ("PKTransitTypeBoat" :: Text)
+    toJSON Bus            = toJSON ("PKTransitTypeBus" :: Text)
+    toJSON Train          = toJSON ("PKTransitTypeTrain" :: Text)
+    toJSON GenericTransit = toJSON ("PKTransitTypeGeneric" :: Text)
 
 instance ToJSON PassValue where
     toJSON (PassInt i) = toJSON i
@@ -344,17 +341,6 @@ jsonPassdate = toJSON . formatTime defaultTimeLocale timeFormat
 -- |Helper function that parses a 'UTCTime' out of a Text
 parseJsonDate :: Text -> Maybe UTCTime
 parseJsonDate = parseTime defaultTimeLocale timeFormat . unpack
-
-instance Show PassType where
-    show (BoardingPass _ _) = "boardingPass"
-    show (Coupon _) = "coupon"
-    show (Event _) = "eventTicket"
-    show (GenericPass _) = "generic"
-    show (StoreCard _) = "storeCard"
-
-deriving instance Show PassField
-deriving instance Show PassContent
-deriving instance Show Pass
 
 -- * Implementing FromJSON
 
@@ -486,7 +472,7 @@ instance FromJSON PassType where
         | HM.member "generic" v =
             withValue "generic" $ \o -> GenericPass <$> parseJSON o
       where
-        withValue k f= f $ v HM.! k
+        withValue k f = f $ v HM.! k
 
 instance FromJSON Pass where
     parseJSON o@(Object v) =
