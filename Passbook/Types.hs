@@ -22,7 +22,7 @@ module Passbook.Types(
     , PassContent(..)
     , Pass(..)
     -- * Passbook field types
-    , RelevantDate
+    , RelevantDate(..)
     , Location(..)
     , RGBColor
     , BarcodeFormat(..)
