@@ -3,14 +3,14 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 
-{- |This module provides different functions to sign a 'Pass' using Apple's @signpass@
-    command-line tool.
-
-    I intend to move the signing process to a Haskell native OpenSSL binding later
-    on, but due to time constraints didn't get around to it yet.
+{- |This module provides different functions to sign a Passbook 'Pass'. Some of these functions
+    only work on OS X and only if Apple's @signpass@ utility is installed. Please refer to the
+    documentation regarding the specific function.
 
     If you want to use this module with an existing .pkpass file, you can import its
     @pass.json@ file using the function 'loadPass'.
+
+    The function 'signOpen' signs a 'Pass' using OpenSSL on any Unix-based OS.
 
     The function 'signpass' creates a random UUID during the signing process, uses this UUID
     as the passes' serial number and returns it along with the path to the signed pass.
@@ -24,7 +24,7 @@
     using that for the serial number and file name. This will most likely be used
     for updating existing passes.
 
-    Using the function is very simple, assuming you have created a 'Pass' called
+    Using these function is very simple, assuming you have created a 'Pass' called
     @myPass@ and you have the related assets (e.g. the logo.png and icon.png files)
     stored in a folder named @myPass/@.
 
@@ -36,18 +36,18 @@
     You will find the pass at @path@ with the filename @passId.pkpass@. Using the
     types from "Passbook.Types" ensures that passes are generated correctly.
 
-    The @signpass@ utility must have access to your Keychain to be able to retrieve
-    your Pass Type Certificate for the pass to sign. You should run it once outside
-    of any program to grant it full access to your Keychain.
+    If you are using the functions that depend on Apple's @signpass@ utility,
+    it must have access to your Keychain to be able to retrieve your Pass Type
+    Certificate for the pass to sign. You should run it once on the Terminal to
+    grant it the required access rights (OS X prompts you automatically).
 
     Please note that an @icon.png@ file /must be/ present in your asset folder,
-    otherwise the generated pass will not work.
+    otherwise the generated pass will not work. This is /not/ checked by this module.
 
     Refer to Apple's Passbook documentation at <https://developer.apple.com/passbook/>
     for more information or to retrieve the @signpass@ tool which is included in the
     Passbook Support Materials. (iOS Developer Membership necessary)
 
-    This module will most likely only work on OS X machines.
 -}
 module Passbook ( -- * Sign using signpass
                   signpass
@@ -86,6 +86,8 @@ default (LT.Text)
 -- |Takes the filepaths to the folder containing the path assets
 --  and the output folder, a 'Pass' and uses a random UUID to
 --  create and sign the pass.
+--
+--  /Important:/ OS X only!
 signpass :: FilePath -- ^ Input file path (asset directory)
          -> FilePath -- ^ Output file path
          -> Pass -- ^ The pass to sign
@@ -99,6 +101,8 @@ signpass passIn passOut pass = do
 --  modifier function that updates the pass with the generated UUID.
 --  This is useful for cases where you want to store the UUID in the barcode
 --  or some other field on the pass as well.
+--
+--  /Important:/ OS X only!
 signpassWithModifier :: FilePath -- ^ Input file path (asset directory)
                      -> FilePath -- ^ Output file path
                      -> Pass -- ^ The pass to sign
@@ -117,6 +121,8 @@ updateBarcode n p = case barcode p of
                                      , message = n } }
 
 -- |Creates and signs a 'Pass' with an existing ID.
+--
+--  /Important:/ OS X only!
 signpassWithId :: ST.Text -- ^ The pass ID
                -> FilePath -- ^ Input file path (asset directory)
                -> FilePath -- ^ Output file path
@@ -145,13 +151,11 @@ saveJSON json path = LB.writeFile (LT.unpack $ toTextIgnore path) $ encode json
 -- |Helper function to sign the manifest
 sslSign :: FilePath -- ^ Certificate
         -> FilePath -- ^ Key
-        -> FilePath -- ^ WWDR certificate
         -> FilePath -- ^ Temporary directory containing manifest.json
         -> Sh Text
-sslSign cert key wwdr tmp =
-    run "openssl" [ "smime" , "-binary"
+sslSign cert key  tmp =
+    run "openssl" [ "smime", "-binary"
                   , "-sign"
-                  , "-certfile", toTextIgnore wwdr
                   , "-signer", toTextIgnore cert
                   , "-inkey" , toTextIgnore key
                   , "-in", "manifest.json"
@@ -169,18 +173,15 @@ sslSign cert key wwdr tmp =
 --
 -- > $ openssl rsa -in keypw.pem -out key.pem
 --
---   You also need to export the "Apple Worldwide Developer Relations Certification Authority"
---   certificate from your keychain and save it as a .pem file. This needs to be passed as an
---   argument to this function as well. If you do not have this certificate in your keychain
---   it can be found at <http://www.apple.com/certificateauthority/>
+--   /Important:/ All paths passed to this function /must/ be absolute! This function works
+--   on all Unix operating systems.
 signOpen :: FilePath -- ^ Input file path (asset directory)
          -> FilePath -- ^ Output folder
          -> FilePath -- ^ Certificate
          -> FilePath -- ^ Certificate key
-         -> FilePath -- ^ Apple WWDR certificate
          -> Pass     -- ^ The pass to sign
          -> IO FilePath -- ^ The signed .pkpass file
-signOpen passIn passOut cert key wwdr pass = shellyNoDir $ do
+signOpen passIn passOut cert key pass = shelly $ silently $ do
     let tmp = passOut </> (serialNumber pass)
         passFile = LT.append (LT.fromStrict $ serialNumber pass) ".pkpass"
     cp_r passIn tmp
@@ -188,7 +189,7 @@ signOpen passIn passOut cert key wwdr pass = shellyNoDir $ do
     cd tmp
     manifest <- liftM Manifest $ pwd >>= ls >>= mapM genHash
     liftIO $ saveJSON manifest (tmp </> "manifest.json")
-    sslSign cert key wwdr tmp
+    sslSign cert key tmp
     files <- liftM (map (toTextIgnore . filename)) $ ls =<< pwd
     run "zip" ((toTextIgnore $ passOut </> passFile) : files)
     rm_rf tmp
