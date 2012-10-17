@@ -3,26 +3,20 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 
-{- |This module provides different functions to sign a Passbook 'Pass'. Some of these functions
-    only work on OS X and only if Apple's @signpass@ utility is installed. Please refer to the
-    documentation regarding the specific function.
+{- |This module provides different functions to sign a Passbook 'Pass'.
 
-    If you want to use this module with an existing .pkpass file, you can import its
-    @pass.json@ file using the function 'loadPass'.
+    /Please read the documentation!/
 
-    The function 'signOpen' signs a 'Pass' using OpenSSL on any Unix-based OS.
+    One set of functions uses the @signpass@ tool included in Apple's Passbook
+    Support Materials to sign the pass. This uses the system keychain directly, but
+    works on OS X only.
 
-    The function 'signpass' creates a random UUID during the signing process, uses this UUID
-    as the passes' serial number and returns it along with the path to the signed pass.
+    The other set of functions uses OpenSSL instead, in this case you need to export
+    your certificate using the process described in the OpenSSL section of this document.
 
-    The funciton 'signpassWithModifier' creates a random UUID during the signing process,
-    passes this UUID on to a function that modifies the pass accordingly (e.g. sets the serial
-    number or the barcode payload to the UUID) and otherwise works like 'signpass'.
-    The function 'updateBarcode' is provided as well.
-
-    The function, 'signpassWithId', takes an existing ID and signs the pass
-    using that for the serial number and file name. This will most likely be used
-    for updating existing passes.
+    If you want to use this module with an existing .pkpass file, you can import it
+    using the function 'loadPass'. Please note that you still need to provide the
+    assets in a separate directory, 'loadPass' only parses the @pass.json@ file.
 
     Using these function is very simple, assuming you have created a 'Pass' called
     @myPass@ and you have the related assets (e.g. the logo.png and icon.png files)
@@ -36,11 +30,6 @@
     You will find the pass at @path@ with the filename @passId.pkpass@. Using the
     types from "Passbook.Types" ensures that passes are generated correctly.
 
-    If you are using the functions that depend on Apple's @signpass@ utility,
-    it must have access to your Keychain to be able to retrieve your Pass Type
-    Certificate for the pass to sign. You should run it once on the Terminal to
-    grant it the required access rights (OS X prompts you automatically).
-
     Please note that an @icon.png@ file /must be/ present in your asset folder,
     otherwise the generated pass will not work. This is /not/ checked by this module.
 
@@ -50,11 +39,15 @@
 
 -}
 module Passbook ( -- * Sign using signpass
+                  -- $signpass
                   signpass
                 , signpassWithId
                 , signpassWithModifier
                   -- * Sign using OpenSSL
+                  -- $openssl
                 , signOpen
+                , signOpenWithModifier
+                , signOpenWithId
                   -- * Helper functions
                 , genPassId
                 , updateBarcode
@@ -69,11 +62,11 @@ import qualified Data.ByteString.Lazy      as LB
 import           Data.Conduit
 import           Data.Conduit.Binary       hiding (sinkFile)
 import           Data.Conduit.Filesystem
-import           Data.Text.Lazy                 (Text)
 import qualified Data.Text                 as ST
+import           Data.Text.Lazy            (Text)
 import qualified Data.Text.Lazy            as LT
 import           Data.UUID
-import Filesystem.Path (filename)
+import           Filesystem.Path           (filename)
 import           Filesystem.Path.CurrentOS (encodeString)
 import           Passbook.Types
 import           Prelude                   hiding (FilePath)
@@ -82,6 +75,17 @@ import           System.Directory          (doesFileExist)
 import           System.Random
 
 default (LT.Text)
+
+-- $signpass
+--  These functions sign a 'Pass' using the @signpass@ tool provided by Apple in the
+--  Passbook Support Materials. You can find those at <https://developer.apple.com/passbook/>
+--  however, an iOS Developer Membership is necessary for the download.
+--
+--  The signpass utility needs access to your keychain. OS X will prompt you for this the first
+--  time you run the tool.
+--
+--  Please make sure that the @signpass@ tool is within your $PATH. These functions work on OS X
+--  only.
 
 -- |Takes the filepaths to the folder containing the path assets
 --  and the output folder, a 'Pass' and uses a random UUID to
@@ -102,6 +106,8 @@ signpass passIn passOut pass = do
 --  This is useful for cases where you want to store the UUID in the barcode
 --  or some other field on the pass as well.
 --
+--  An example function for use with this is 'updateBarcode'.
+--
 --  /Important:/ OS X only!
 signpassWithModifier :: FilePath -- ^ Input file path (asset directory)
                      -> FilePath -- ^ Output file path
@@ -114,13 +120,14 @@ signpassWithModifier passIn passOut pass modifier = do
     return (passPath, passId)
 
 -- |Updates the barcode in a pass with the UUID. This can be passed to 'signpassWithModifier'
+--  or 'signOpenWithModifier'.
 updateBarcode :: ST.Text -> Pass -> Pass
 updateBarcode n p = case barcode p of
     Nothing -> p -- This pass has no barcode.
     Just ob -> p { barcode = Just ob { altText = Just n
                                      , message = n } }
 
--- |Creates and signs a 'Pass' with an existing ID.
+-- |Signs the 'Pass' using the provided ID, no random UUID generation happens here.
 --
 --  /Important:/ OS X only!
 signpassWithId :: ST.Text -- ^ The pass ID
@@ -162,10 +169,13 @@ sslSign cert key  tmp =
                   , "-out", "signature"
                   , "-outform", "DER" ]
 
--- | Signs a pass using openssl. You need to export your certificate from the keychain.
---   Assuming you have saved the certificate as @cert.p12@, the conversion works like this:
--- 
--- > $ openssl pkcs12 -in cert.p12 -clcerts -nokeys -out certificate.pem 
+-- $openssl
+--   These functions sign a 'Pass' using OpenSSL. They work on operating systems
+--   other than OS X as well. To use these you need to export your certificate
+--   from the keychain. Assuming you have saved the certificatea as @cert.p12@
+--   , the conversion works like this:
+--
+-- > $ openssl pkcs12 -in cert.p12 -clcerts -nokeys -out certificate.pem
 -- > $ openssl pkcs12 -in cert.p12 -nocerts -out keypw.pem
 --
 --   Enter a password for your key file, you will only need this once in the next step.
@@ -173,19 +183,54 @@ sslSign cert key  tmp =
 --
 -- > $ openssl rsa -in keypw.pem -out key.pem
 --
---   /Important:/ All paths passed to this function /must/ be absolute! This function works
---   on all Unix operating systems.
+--   /Important:/ All paths passed to these functions /must/ be absolute.
+
+
+-- |Takes the filepaths to the folder containing the path assets
+--  and the output folder, the paths to the certificate and the key,
+--  a 'Pass' and uses a random UUID to create and sign the pass.
 signOpen :: FilePath -- ^ Input file path (asset directory)
          -> FilePath -- ^ Output folder
          -> FilePath -- ^ Certificate
          -> FilePath -- ^ Certificate key
          -> Pass     -- ^ The pass to sign
-         -> IO FilePath -- ^ The signed .pkpass file
-signOpen passIn passOut cert key pass = shelly $ silently $ do
-    let tmp = passOut </> (serialNumber pass)
-        passFile = LT.append (LT.fromStrict $ serialNumber pass) ".pkpass"
+         -> IO (FilePath, ST.Text) -- ^ The signed .pkpass file and ID
+signOpen passIn passOut cert key pass = do
+    passId <- genPassId
+    passPath <- signOpenWithId passIn passOut cert key pass passId
+    return (passPath, passId)
+
+-- |Works like 'signOpen', except for the fourth argument which is a
+--  modifier function that updates the pass with the generated UUID.
+--  This is useful for cases where you want to store the UUID in the barcode
+--  or some other field on the pass as well.
+--
+--  An example function for use with this is 'updateBarcode'.
+signOpenWithModifier :: FilePath -- ^ Input file path (asset directory)
+                     -> FilePath -- ^ Output folder
+                     -> FilePath -- ^ Certificate
+                     -> FilePath -- ^ Certificate key
+                     -> Pass     -- ^ The pass to sign
+                     -> (ST.Text -> Pass -> Pass) -- ^ Modifier function
+                     -> IO (FilePath, ST.Text) -- ^ The signed .pkpass file and ID
+signOpenWithModifier passIn passOut cert key pass f = do
+    passId <- genPassId
+    passPath <- signOpenWithId passIn passOut cert key (f passId pass) passId
+    return (passPath, passId)
+
+-- |Signs the 'Pass' using the provided ID, no random UUID generation happens here.
+signOpenWithId :: FilePath -- ^ Input file path (asset directory)
+               -> FilePath -- ^ Output folder
+               -> FilePath -- ^ Certificate
+               -> FilePath -- ^ Certificate key
+               -> Pass     -- ^ The pass to sign
+               -> ST.Text  -- ^ The pass ID
+               -> IO FilePath -- ^ The signed .pkpass file
+signOpenWithId passIn passOut cert key pass passId = shelly $ silently $ do
+    let tmp = passOut </> passId
+        passFile = LT.append (LT.fromStrict $ passId) ".pkpass"
     cp_r passIn tmp
-    liftIO $ renderPass (tmp </> "pass.json") pass
+    liftIO $ renderPass (tmp </> "pass.json") (pass { serialNumber = passId })
     cd tmp
     manifest <- liftM Manifest $ pwd >>= ls >>= mapM genHash
     liftIO $ saveJSON manifest (tmp </> "manifest.json")
