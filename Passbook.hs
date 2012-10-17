@@ -49,9 +49,13 @@
 
     This module will most likely only work on OS X machines.
 -}
-module Passbook ( signpass
+module Passbook ( -- * Sign using signpass
+                  signpass
                 , signpassWithId
                 , signpassWithModifier
+                  -- * Sign using OpenSSL
+                , signOpen
+                  -- * Helper functions
                 , genPassId
                 , updateBarcode
                 , loadPass
@@ -59,14 +63,17 @@ module Passbook ( signpass
 
 import           Codec.Archive.Zip
 import           Control.Monad             (liftM)
+import           Control.Monad.IO.Class    (liftIO)
 import           Data.Aeson
-import           Data.ByteString.Lazy      as LB
+import qualified Data.ByteString.Lazy      as LB
 import           Data.Conduit
 import           Data.Conduit.Binary       hiding (sinkFile)
 import           Data.Conduit.Filesystem
+import           Data.Text.Lazy                 (Text)
 import qualified Data.Text                 as ST
-import           Data.Text.Lazy            as LT
+import qualified Data.Text.Lazy            as LT
 import           Data.UUID
+import Filesystem.Path (filename)
 import           Filesystem.Path.CurrentOS (encodeString)
 import           Passbook.Types
 import           Prelude                   hiding (FilePath)
@@ -123,6 +130,69 @@ signpassWithId passId passIn passOut pass = shelly $ do
     signcmd lazyId tmp passOut
     rm_rf tmp
     return (passOut </> LT.append lazyId ".pkpass")
+
+-- |Helper function to generate a hash
+genHash :: FilePath -> Sh (Text, Text)
+genHash file = do
+    rawhash <- run "openssl" ["sha1", toTextIgnore file]
+    let hash = LT.drop 1 $ LT.dropWhile (/= ' ') rawhash
+    return (toTextIgnore $ filename file, LT.filter (/= '\n') hash)
+
+-- |Render JSON and put it in a file
+saveJSON :: ToJSON a => a -> FilePath -> IO ()
+saveJSON json path = LB.writeFile (LT.unpack $ toTextIgnore path) $ encode json
+
+-- |Helper function to sign the manifest
+sslSign :: FilePath -- ^ Certificate
+        -> FilePath -- ^ Key
+        -> FilePath -- ^ WWDR certificate
+        -> FilePath -- ^ Temporary directory containing manifest.json
+        -> Sh Text
+sslSign cert key wwdr tmp =
+    run "openssl" [ "smime" , "-binary"
+                  , "-sign"
+                  , "-certfile", toTextIgnore wwdr
+                  , "-signer", toTextIgnore cert
+                  , "-inkey" , toTextIgnore key
+                  , "-in", "manifest.json"
+                  , "-out", "signature"
+                  , "-outform", "DER" ]
+
+-- | Signs a pass using openssl. You need to export your certificate from the keychain.
+--   Assuming you have saved the certificate as @cert.p12@, the conversion works like this:
+-- 
+-- > $ openssl pkcs12 -in cert.p12 -clcerts -nokeys -out certificate.pem 
+-- > $ openssl pkcs12 -in cert.p12 -nocerts -out keypw.pem
+--
+--   Enter a password for your key file, you will only need this once in the next step.
+--   Then strip the password from your key file using:
+--
+-- > $ openssl rsa -in keypw.pem -out key.pem
+--
+--   You also need to export the "Apple Worldwide Developer Relations Certification Authority"
+--   certificate from your keychain and save it as a .pem file. This needs to be passed as an
+--   argument to this function as well. If you do not have this certificate in your keychain
+--   it can be found at <http://www.apple.com/certificateauthority/>
+signOpen :: FilePath -- ^ Input file path (asset directory)
+         -> FilePath -- ^ Output folder
+         -> FilePath -- ^ Certificate
+         -> FilePath -- ^ Certificate key
+         -> FilePath -- ^ Apple WWDR certificate
+         -> Pass     -- ^ The pass to sign
+         -> IO FilePath -- ^ The signed .pkpass file
+signOpen passIn passOut cert key wwdr pass = shellyNoDir $ do
+    let tmp = passOut </> (serialNumber pass)
+        passFile = LT.append (LT.fromStrict $ serialNumber pass) ".pkpass"
+    cp_r passIn tmp
+    liftIO $ renderPass (tmp </> "pass.json") pass
+    cd tmp
+    manifest <- liftM Manifest $ pwd >>= ls >>= mapM genHash
+    liftIO $ saveJSON manifest (tmp </> "manifest.json")
+    sslSign cert key wwdr tmp
+    files <- liftM (map (toTextIgnore . filename)) $ ls =<< pwd
+    run "zip" ((toTextIgnore $ passOut </> passFile) : files)
+    rm_rf tmp
+    return (passOut </> passFile)
 
 -- |Generates a random UUID for a Pass using "Data.UUID" and "System.Random"
 genPassId :: IO ST.Text

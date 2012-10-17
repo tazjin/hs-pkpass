@@ -32,6 +32,7 @@ module Passbook.Types(
     , NumberStyle(..)
     , TransitType(..)
     , WebService(..)
+    , Manifest(..)
     -- * Auxiliary functions
     , rgb
     , mkBarcode
@@ -47,6 +48,7 @@ import           Data.Attoparsec.Number
 import           Data.Attoparsec.Text
 import qualified Data.HashMap.Strict    as HM
 import           Data.Text              (Text, pack, unpack)
+import qualified Data.Text.Lazy         as LT
 import           Data.Time
 import           Data.Typeable
 import           System.Locale
@@ -193,6 +195,14 @@ data Pass = Pass {
 
     , passContent                :: PassType -- ^ The kind of pass and the passes' fields (required)
 } deriving (Eq, Ord, Show, Read, Typeable)
+
+-- |The manifest.json file
+data Manifest = Manifest [(LT.Text, LT.Text)] -- ^ (Filename, Hash)
+
+instance ToJSON Manifest where
+    toJSON (Manifest files) =
+      let pairs = map (\(f, h) -> LT.toStrict f .= h) files
+      in object pairs
 
 -- * JSON instances
 
