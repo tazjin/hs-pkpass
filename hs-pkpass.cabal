@@ -39,4 +39,5 @@ library
                        zip-archive >= 0.1.1.8,
                        system-filepath < 0.5,
                        bytestring,
-                       transformers >= 0.3
+                       transformers >= 0.3,
+                       binary >= 0.5
