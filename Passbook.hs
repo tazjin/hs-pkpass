@@ -58,7 +58,10 @@ import           Codec.Archive.Zip
 import           Control.Monad             (liftM)
 import           Control.Monad.IO.Class    (liftIO)
 import           Data.Aeson
+import           Data.Binary               (Word32)
+import           Data.Bits                 (shiftR, (.&.))
 import qualified Data.ByteString.Lazy      as LB
+import           Data.Char                 (intToDigit)
 import           Data.Conduit
 import           Data.Conduit.Binary       hiding (sinkFile)
 import           Data.Conduit.Filesystem
@@ -242,7 +245,23 @@ signOpenWithId passIn passOut cert key pass passId = shelly $ silently $ do
 
 -- |Generates a random UUID for a Pass using "Data.UUID" and "System.Random"
 genPassId :: IO ST.Text
-genPassId = liftM (ST.pack . toString) randomIO
+genPassId = liftM (ST.pack . showPassId) randomIO
+
+-- |Shows a UUID without the hyphens
+showPassId :: UUID -> String
+showPassId uuid = let (w0, w1, w2, w3) = toWords uuid
+                  in hexw w0 $ hexw' w1 $ hexw' w2 $ hexw w3 ""
+    where hexw :: Word32 -> String -> String
+          hexw  w s = hexn w 28 : hexn w 24 : hexn w 20 : hexn w 16
+                    : hexn w 12 : hexn w  8 : hexn w  4 : hexn w  0 : s
+
+          hexw' :: Word32 -> String -> String
+          hexw' w s = hexn w 28 : hexn w 24 : hexn w 20 : hexn w 16
+                    : hexn w 12 : hexn w  8 : hexn w  4 : hexn w  0 : s
+
+          hexn :: Word32 -> Int -> Char
+          hexn w r = intToDigit $ fromIntegral ((w `shiftR` r) .&. 0xf)
+
 
 -- |Render and store a pass.json at the desired location.
 renderPass :: FilePath -> Pass -> IO ()
